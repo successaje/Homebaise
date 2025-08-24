@@ -93,14 +93,18 @@ export default function Home() {
             </div>
             
             <div className="flex items-center space-x-4">
-              <button className="text-gray-300 hover:text-white transition-colors hover-scale">
-                Sign In
-              </button>
-              <MagneticEffect>
-                <button className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-6 py-2 rounded-full font-medium hover:shadow-lg hover:shadow-emerald-500/25 transition-all animate-gradient-x">
-                  Get Started
+              <Link href="/auth">
+                <button className="text-gray-300 hover:text-white transition-colors hover-scale">
+                  Sign In
                 </button>
-              </MagneticEffect>
+              </Link>
+              <Link href="/auth">
+                <MagneticEffect>
+                  <button className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-6 py-2 rounded-full font-medium hover:shadow-lg hover:shadow-emerald-500/25 transition-all animate-gradient-x">
+                    Get Started
+                  </button>
+                </MagneticEffect>
+              </Link>
             </div>
           </div>
         </div>
@@ -149,12 +153,14 @@ export default function Home() {
               {/* CTA Buttons */}
               <ScrollAnimations animationType="fade-in-up" delay={800}>
                 <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
-                  <MagneticEffect>
-                    <button className="group relative bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-8 py-4 rounded-full font-semibold text-lg overflow-hidden hover-lift">
-                      <span className="relative z-10">Explore Properties</span>
-                      <div className="absolute inset-0 bg-gradient-to-r from-emerald-600 to-teal-600 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                    </button>
-                  </MagneticEffect>
+                  <Link href="/auth">
+                    <MagneticEffect>
+                      <button className="group relative bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-8 py-4 rounded-full font-semibold text-lg overflow-hidden hover-lift">
+                        <span className="relative z-10">Explore Properties</span>
+                        <div className="absolute inset-0 bg-gradient-to-r from-emerald-600 to-teal-600 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                      </button>
+                    </MagneticEffect>
+                  </Link>
                   <MagneticEffect>
                     <button className="border border-white/20 bg-white/5 text-white px-8 py-4 rounded-full font-medium text-lg hover:bg-white/10 transition-all hover-lift">
                       Watch Demo
@@ -313,6 +319,7 @@ export default function Home() {
 
             <div className="max-w-5xl mx-auto">
               <div className="relative">
+                {/* Timeline line */}
                 <div className="hidden lg:block absolute left-1/2 top-0 bottom-0 w-0.5 bg-gradient-to-b from-emerald-500 to-blue-500 -translate-x-1/2 animate-pulse-slow"></div>
                 
                 {[
@@ -365,7 +372,8 @@ export default function Home() {
                           </div>
                         </div>
                         
-                        <div className="hidden lg:block absolute left-1/2 w-12 h-12 rounded-full bg-gradient-to-r from-emerald-500 to-blue-500 text-white font-bold text-xl flex items-center justify-center -translate-x-1/2 shadow-lg animate-glow">
+                        {/* Step number - properly centered */}
+                        <div className="hidden lg:flex absolute left-1/2 top-1/2 w-12 h-12 rounded-full bg-gradient-to-r from-emerald-500 to-blue-500 text-white font-bold text-xl items-center justify-center -translate-x-1/2 -translate-y-1/2 shadow-lg animate-glow z-10">
                           {item.step}
                         </div>
                         
@@ -400,12 +408,14 @@ export default function Home() {
             </ScrollAnimations>
             <ScrollAnimations animationType="fade-in-up" delay={300}>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <MagneticEffect>
-                  <button className="group relative bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-8 py-4 rounded-full font-semibold text-lg overflow-hidden hover-lift">
-                    <span className="relative z-10">Get Started Now</span>
-                    <div className="absolute inset-0 bg-gradient-to-r from-emerald-600 to-teal-600 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                  </button>
-                </MagneticEffect>
+                <Link href="/auth">
+                  <MagneticEffect>
+                    <button className="group relative bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-8 py-4 rounded-full font-semibold text-lg overflow-hidden hover-lift">
+                      <span className="relative z-10">Get Started Now</span>
+                      <div className="absolute inset-0 bg-gradient-to-r from-emerald-600 to-teal-600 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                    </button>
+                  </MagneticEffect>
+                </Link>
                 <MagneticEffect>
                   <button className="border border-white/20 bg-white/5 text-white px-8 py-4 rounded-full font-medium text-lg hover:bg-white/10 transition-all hover-lift">
                     Schedule a Demo

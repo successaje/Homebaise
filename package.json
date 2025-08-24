@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@hashgraph/sdk": "^2.71.1",
+    "@supabase/ssr": "^0.7.0",
+    "@supabase/supabase-js": "^2.56.0",
     "hashconnect": "^3.0.13",
     "next": "15.5.0",
     "react": "19.1.0",
