@@ -1,36 +1,52 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Homebaise
 
-## Getting Started
+> **Tagline:** “Own, invest, and build trust in Africa — one block at a time.”
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## 🚩 Problem
+Millions of Nigerians & Africans struggle with land fraud, missing property records, and lack of access to safe investments.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- Diaspora remittances ($53B into Africa yearly) mostly go into consumption, not wealth-building assets.
+- Farmers and property owners can’t unlock liquidity from their assets.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 💡 Solution (Homebaise)
+A Hedera-powered RWA platform that:
+- Tokenizes land, property & farms into secure digital shares.
+- Enables fractional ownership & investment — start with as little as $10.
+- Connects diaspora remittances directly into real assets back home.
+- Provides yield & liquidity through property rentals or crop revenue sharing.
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
+## 🔑 Features
+- 📜 **Onchain Land Registry:** Transparent, tamper-proof, fraud-proof
+- 🌍 **Diaspora Gateway:** Send remittances as investments, not just cash
+- 💸 **Micro-Investments:** Buy fractions of real estate or farmland
+- 🌱 **Farmer Financing:** Tokenized crops & collateral-based loans
+- 🔒 **Trust Layer:** Hedera’s DLT ensures fairness, speed & low costs
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 🌍 Impact
+- Nigerians get trustworthy land ownership & accessible investments.
+- Diaspora Africans build generational wealth, not just spend.
+- Farmers gain capital & fairer markets.
+- Hedera becomes the backbone of African real-world assets.
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 🎯 Hackathon Pitch One-Liner
+> “Homebaise is where Africa’s assets meet Web3 — turning land, farms, and homes into trusted, investable opportunities on Hedera.”
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+## 🚀 Quick Start
+_Coming soon: setup, usage, and contribution instructions._
+
+---
+
+## 📄 License
+_Coming soon._
