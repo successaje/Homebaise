@@ -128,7 +128,7 @@ export default function Home() {
               <ScrollAnimations animationType="fade-in-down" delay={200}>
                 <div className="inline-flex items-center px-4 py-2 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm font-medium mb-8 animate-glow">
                   <div className="w-2 h-2 bg-emerald-400 rounded-full mr-2 animate-pulse"></div>
-                  Live on Hedera Mainnet
+                  Live on Hedera Testnet
                 </div>
               </ScrollAnimations>
               

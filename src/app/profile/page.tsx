@@ -6,6 +6,13 @@ import Link from 'next/link';
 import MagneticEffect from '@/components/MagneticEffect';
 import ScrollAnimations from '@/components/ScrollAnimations';
 import VerifiedBadge from '@/components/VerifiedBadge';
+import dynamic from 'next/dynamic';
+
+// Dynamically import WalletConnect to avoid SSR issues
+const WalletConnect = dynamic(() => import('@/components/WalletConnect'), {
+  ssr: false,
+  loading: () => <div className="h-10 bg-white/5 border border-white/10 rounded-lg animate-pulse"></div>
+});
 
 interface ProfileRow {
   id: string;
@@ -64,13 +71,18 @@ export default function ProfilePage() {
     setSaving(false);
   };
 
-  // Placeholder for wallet connect (implement HashConnect later)
-  const connectWallet = async () => {
-    // TODO: integrate HashConnect; for now prompt input or mock
-    const input = prompt('Enter your Hedera account (0.0.x)');
-    if (input) {
-      setWalletAddress(input);
-    }
+  const onWalletConnected = async (acc: string) => {
+    setWalletAddress(acc);
+  };
+
+  const onWalletVerified = async (acc: string, signatureHex: string) => {
+    if (!profile) return;
+    setSaving(true);
+    await supabase
+      .from('profiles')
+      .update({ wallet_address: acc })
+      .eq('id', profile.id);
+    setSaving(false);
   };
 
   if (loading) {
@@ -151,7 +163,7 @@ export default function ProfilePage() {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="block text-sm font-medium text-gray-300">Wallet address</label>
-                    <button onClick={connectWallet} className="text-emerald-400 hover:text-emerald-300 text-sm">Connect</button>
+                    <WalletConnect onConnected={onWalletConnected} onVerified={onWalletVerified} />
                   </div>
                   <input
                     value={walletAddress}
