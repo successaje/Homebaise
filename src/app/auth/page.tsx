@@ -125,7 +125,7 @@ export default function AuthPage() {
                 </button>
               </MagneticEffect>
 
-              <MagneticEffect>
+              {/* <MagneticEffect>
                 <button
                   onClick={() => handleSocialAuth('github')}
                   disabled={loading}
@@ -136,7 +136,7 @@ export default function AuthPage() {
                   </svg>
                   <span>Continue with GitHub</span>
                 </button>
-              </MagneticEffect>
+              </MagneticEffect> */}
 
               <MagneticEffect>
                 <button

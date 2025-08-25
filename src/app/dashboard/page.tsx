@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import MagneticEffect from '@/components/MagneticEffect';
 import ScrollAnimations from '@/components/ScrollAnimations';
+import { ensureProfileExists } from '@/lib/profile';
 
 interface User {
   id: string;
@@ -29,17 +30,20 @@ export default function Dashboard() {
         return;
       }
       setUser(session.user);
+      // Ensure profile exists after auth
+      await ensureProfileExists();
       setLoading(false);
     };
 
     getUser();
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_OUT') {
         router.push('/auth');
       } else if (session) {
         setUser(session.user);
+        await ensureProfileExists();
       }
     });
 
