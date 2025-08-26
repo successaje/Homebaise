@@ -6,6 +6,8 @@ import Link from 'next/link';
 import MagneticEffect from '@/components/MagneticEffect';
 import ScrollAnimations from '@/components/ScrollAnimations';
 import VerifiedBadge from '@/components/VerifiedBadge';
+import KYCStatus from '@/components/KYCStatus';
+import KYCVerification from '@/components/KYCVerification';
 import dynamic from 'next/dynamic';
 
 // Dynamically import WalletConnect to avoid SSR issues
@@ -31,6 +33,15 @@ export default function ProfilePage() {
   const [fullName, setFullName] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
   const [walletAddress, setWalletAddress] = useState('');
+
+  const updateProfileStatus = (newStatus: 'unverified' | 'pending' | 'verified') => {
+    if (profile) {
+      setProfile({
+        ...profile,
+        kyc_status: newStatus
+      });
+    }
+  };
 
   useEffect(() => {
     const init = async () => {
@@ -175,10 +186,14 @@ export default function ProfilePage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">KYC status</label>
-                  <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm ${verified ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : profile.kyc_status === 'pending' ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' : 'bg-white/10 text-gray-300 border border-white/10'}`}>
-                    {profile.kyc_status || 'unverified'}
-                  </div>
+                  <KYCStatus status={profile.kyc_status} />
                 </div>
+
+                <KYCVerification 
+                  userId={profile.id}
+                  currentStatus={profile.kyc_status}
+                  onStatusChange={updateProfileStatus}
+                />
 
                 <MagneticEffect>
                   <button

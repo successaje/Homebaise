@@ -407,19 +407,16 @@ export default function Home() {
               </p>
             </ScrollAnimations>
             <ScrollAnimations animationType="fade-in-up" delay={300}>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Link href="/auth">
-                  <MagneticEffect>
-                    <button className="group relative bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-8 py-4 rounded-full font-semibold text-lg overflow-hidden hover-lift">
-                      <span className="relative z-10">Get Started Now</span>
-                      <div className="absolute inset-0 bg-gradient-to-r from-emerald-600 to-teal-600 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                    </button>
-                  </MagneticEffect>
-                </Link>
+              <div className="flex flex-col sm:flex-row gap-4">
                 <MagneticEffect>
-                  <button className="border border-white/20 bg-white/5 text-white px-8 py-4 rounded-full font-medium text-lg hover:bg-white/10 transition-all hover-lift">
-                    Schedule a Demo
-                  </button>
+                  <Link href="/properties" className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-8 py-4 rounded-xl font-semibold hover:shadow-lg hover:shadow-emerald-500/25 transition-all duration-300 hover-lift">
+                    Browse Properties
+                  </Link>
+                </MagneticEffect>
+                <MagneticEffect>
+                  <Link href="/auth" className="border border-white/20 bg-white/5 text-white px-8 py-4 rounded-xl font-semibold hover:bg-white/10 transition-all duration-300 hover-lift">
+                    Get Started
+                  </Link>
                 </MagneticEffect>
               </div>
             </ScrollAnimations>

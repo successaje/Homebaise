@@ -7,16 +7,12 @@ interface WalletConnectProps {
   onVerified?: (accountId: string, signatureHex: string) => void;
 }
 
-declare global {
-  interface Window {
-    hashpack?: {
-      connect: () => Promise<{ accountId: string }>;
-      disconnect: () => Promise<void>;
-      signMessage: (message: string) => Promise<{ signature: string }>;
-      isConnected: () => boolean;
-      getAccountId: () => string | null;
-    };
-  }
+interface SaveData {
+  topic: string;
+  pairingString: string;
+  privateKey: string;
+  pairedWalletData: any;
+  pairedAccounts: string[];
 }
 
 export default function WalletConnect({
@@ -26,79 +22,311 @@ export default function WalletConnect({
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string>('disconnected');
   const [accountId, setAccountId] = useState<string>('');
-  const [hashpackAvailable, setHashpackAvailable] = useState(false);
+  const [pairingString, setPairingString] = useState<string>('');
+  const [showQR, setShowQR] = useState(false);
+  const [hashconnect, setHashconnect] = useState<any>(null);
+  const [saveData, setSaveData] = useState<SaveData>({
+    topic: '',
+    pairingString: '',
+    privateKey: '',
+    pairedWalletData: null,
+    pairedAccounts: [],
+  });
 
   useEffect(() => {
-    // Check if HashPack is available
-    const checkHashpack = () => {
-      const available = typeof window !== 'undefined' && !!window.hashpack;
-      setHashpackAvailable(available);
-      
-      if (available && window.hashpack?.isConnected()) {
-        const account = window.hashpack.getAccountId();
-        if (account) {
-          setAccountId(account);
-          setStatus('connected');
-          onConnected?.(account);
+    const initHashConnect = async () => {
+      try {
+        // Dynamically import HashConnect to avoid SSR issues
+        const { HashConnect } = await import('hashconnect').catch(() => {
+          throw new Error('HashConnect package not available');
+        });
+        
+        console.log('=======================================');
+        console.log('- Connecting wallet...');
+
+        const appMetadata = {
+          name: "Homebaise",
+          description: "Tokenized real estate on Hedera",
+          icon: "/favicon.ico",
+        };
+
+        const hc = new HashConnect();
+        setHashconnect(hc);
+
+        // Debug: Log available properties
+        console.log('HashConnect instance properties:', {
+          hasPairingEvent: !!hc.pairingEvent,
+          hasConnectionStatusChange: !!hc.connectionStatusChange,
+          availableProps: Object.getOwnPropertyNames(hc).filter(prop => 
+            typeof hc[prop as keyof typeof hc] !== 'function'
+          ),
+        });
+
+        // Try to restore saved session first
+        const savedData = localStorage.getItem("hashconnectData");
+        let initData: any, state: any;
+        let useFreshSession = false;
+
+        // Check if we've had encryption errors recently
+        const lastEncryptionError = localStorage.getItem("lastEncryptionError");
+        const now = Date.now();
+        if (lastEncryptionError && (now - parseInt(lastEncryptionError)) < 300000) { // 5 minutes
+          console.log('Recent encryption error detected, starting fresh session');
+          localStorage.removeItem("hashconnectData");
+          useFreshSession = true;
+        }
+
+        if (savedData && !useFreshSession) {
+          try {
+            console.log('Attempting to restore saved session...');
+            const parsedData = JSON.parse(savedData);
+            
+            // Try to restore with saved encryption key
+            if (parsedData.encryptionKey) {
+              initData = await hc.init(appMetadata, parsedData.encryptionKey);
+              console.log('Restored encryption key');
+            } else {
+              initData = await hc.init(appMetadata);
+            }
+            
+            // Try to restore connection if we have a topic
+            if (parsedData.topic) {
+              try {
+                state = await hc.connect(parsedData.topic);
+                console.log('Restored topic:', parsedData.topic);
+              } catch (connectError) {
+                console.log('Failed to restore connection, creating new one:', connectError);
+                state = await hc.connect();
+              }
+            } else {
+              state = await hc.connect();
+            }
+            
+            // Check if we have paired accounts from saved data
+            if (parsedData.pairingData && parsedData.pairingData.accountIds) {
+              const account = parsedData.pairingData.accountIds[0];
+              if (account) {
+                setAccountId(account);
+                setStatus('connected');
+                onConnected?.(account);
+                console.log('Restored connected account:', account);
+              }
+            }
+          } catch (restoreError) {
+            console.log('Failed to restore session, starting fresh:', restoreError);
+            // Clear corrupted data and start fresh
+            localStorage.removeItem("hashconnectData");
+            localStorage.setItem("lastEncryptionError", now.toString());
+            useFreshSession = true;
+          }
+        }
+        
+        if (!savedData || useFreshSession) {
+          // No saved data or restoration failed, start fresh
+          console.log('Starting fresh session...');
+          initData = await hc.init(appMetadata);
+          state = await hc.connect();
+        }
+
+        const newSaveData = {
+          ...saveData,
+          privateKey: initData.privKey,
+        };
+        setSaveData(newSaveData);
+        console.log(`- Private key for pairing: ${newSaveData.privateKey}`);
+
+        const updatedSaveData = {
+          ...newSaveData,
+          topic: state.topic,
+        };
+        setSaveData(updatedSaveData);
+        console.log(`- Pairing topic is: ${updatedSaveData.topic}`);
+
+        // Generate a pairing string
+        const pairingString = hc.generatePairingString(state, "testnet", false);
+        const finalSaveData = {
+          ...updatedSaveData,
+          pairingString,
+        };
+        setSaveData(finalSaveData);
+        setPairingString(pairingString);
+
+        // Save session data for restoration
+        const sessionData = {
+          encryptionKey: initData.privKey,
+          topic: state.topic,
+          pairingData: null, // Will be updated when paired
+        };
+        localStorage.setItem("hashconnectData", JSON.stringify(sessionData));
+
+        // Find any supported local wallets
+        hc.findLocalWallets();
+
+        // Listen for pairing events
+        if (hc.pairingEvent) {
+          hc.pairingEvent.on((pairingData: any) => {
+            console.log('Paired with wallet:', pairingData);
+            const finalData = {
+              ...finalSaveData,
+              pairedWalletData: pairingData,
+              pairedAccounts: pairingData.accountIds || [],
+            };
+            setSaveData(finalData);
+            
+            // Update saved session with pairing data
+            const updatedSessionData = {
+              ...sessionData,
+              pairingData: pairingData,
+            };
+            localStorage.setItem("hashconnectData", JSON.stringify(updatedSessionData));
+            
+            const account = pairingData.accountIds?.[0] || '';
+            setAccountId(account);
+            setStatus('connected');
+            onConnected?.(account);
+          });
+        }
+
+        // Listen for connection status (if available)
+        if (hc.connectionStatusChange) {
+          hc.connectionStatusChange.on((connectionStatus: any) => {
+            console.log('Connection status:', connectionStatus);
+            if (connectionStatus === 'Disconnected') {
+              setStatus('disconnected');
+              setAccountId('');
+              // Clear saved session on disconnect
+              localStorage.removeItem("hashconnectData");
+            }
+          });
+        }
+
+        setStatus('ready');
+        console.log('HashConnect initialized successfully');
+      } catch (error) {
+        console.error('HashConnect initialization failed:', error);
+        
+        // Check if it's an encryption error
+        if (error instanceof Error && error.message.includes('encryption')) {
+          console.log('Encryption error detected - clearing corrupted session and trying again');
+          localStorage.removeItem("hashconnectData");
+          setStatus('encryption_error');
+        } else {
+          setStatus('error');
         }
       }
     };
 
-    checkHashpack();
-    
-    // Listen for HashPack events
-    const handleHashpackEvent = (event: MessageEvent) => {
-      if (event.data?.type === 'hashpack-connection-changed') {
-        checkHashpack();
+    // Override console.error to suppress encryption errors
+    const originalConsoleError = console.error;
+    console.error = (...args) => {
+      const message = args.join(' ');
+      if (message.includes('encryption') || message.includes('decryption') || message.includes('Invalid encrypted text')) {
+        console.log('Suppressed encryption error:', message);
+        return;
+      }
+      originalConsoleError.apply(console, args);
+    };
+
+    // Add global error handler for uncaught promise rejections
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      const errorMessage = event.reason?.message || '';
+      if (errorMessage.includes('encryption') || errorMessage.includes('decryption') || errorMessage.includes('Invalid encrypted text')) {
+        console.log('Suppressed encryption error from promise rejection:', errorMessage);
+        // Clear corrupted session data
+        localStorage.removeItem("hashconnectData");
+        localStorage.setItem("lastEncryptionError", Date.now().toString());
+        setShowQR(true);
+        setLoading(false);
+        event.preventDefault();
+        return false;
       }
     };
 
-    window.addEventListener('message', handleHashpackEvent);
-    return () => window.removeEventListener('message', handleHashpackEvent);
+    // Also handle regular errors
+    const handleError = (event: ErrorEvent) => {
+      const errorMessage = event.error?.message || event.message || '';
+      if (errorMessage.includes('encryption') || errorMessage.includes('decryption') || errorMessage.includes('Invalid encrypted text')) {
+        console.log('Suppressed encryption error from error event:', errorMessage);
+        // Clear corrupted session data
+        localStorage.removeItem("hashconnectData");
+        localStorage.setItem("lastEncryptionError", Date.now().toString());
+        setShowQR(true);
+        setLoading(false);
+        event.preventDefault();
+        return false;
+      }
+    };
+
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    window.addEventListener('error', handleError);
+
+    initHashConnect();
+    
+    return () => {
+      // Restore original console.error
+      console.error = originalConsoleError;
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+      window.removeEventListener('error', handleError);
+    };
   }, [onConnected]);
 
-  const connectWallet = useCallback(async () => {
-    if (!window.hashpack) {
-      alert('HashPack wallet not found. Please install HashPack from https://hashpack.app/');
-      return;
-    }
-
+  const connectToLocalWallet = useCallback(async () => {
+    if (!hashconnect || !saveData.pairingString) return;
+    
     setLoading(true);
     try {
-      const result = await window.hashpack.connect();
-      setAccountId(result.accountId);
-      setStatus('connected');
-      onConnected?.(result.accountId);
+      console.log('Connecting to local wallet...');
+      await hashconnect.connectToLocalWallet(saveData.pairingString);
     } catch (error) {
-      console.error('Failed to connect to HashPack:', error);
-      alert('Failed to connect to HashPack wallet');
+      console.error('Failed to connect to local wallet:', error);
+      
+      // Check if it's an encryption error
+      if (error instanceof Error && (error.message.includes('encryption') || error.message.includes('decryption'))) {
+        console.log('Encryption error detected - switching to manual connection mode');
+        
+        // Instead of retrying, just show the manual connection option
+        setShowQR(true);
+        alert('Automatic connection failed due to encryption issues. Please use the QR code below to connect manually with HashPack mobile app.');
+      } else {
+        alert('Failed to connect to HashPack wallet. Please make sure HashPack is installed and unlocked.');
+      }
     } finally {
       setLoading(false);
     }
-  }, [onConnected]);
+  }, [hashconnect, saveData.pairingString]);
 
   const disconnect = useCallback(async () => {
-    if (!window.hashpack) return;
-
+    if (!hashconnect || !saveData.topic) return;
+    
     try {
-      await window.hashpack.disconnect();
-      setAccountId('');
+      await hashconnect.disconnect(saveData.topic);
       setStatus('disconnected');
+      setAccountId('');
+      setSaveData(prev => ({
+        ...prev,
+        pairedWalletData: null,
+        pairedAccounts: [],
+      }));
     } catch (error) {
-      console.error('Failed to disconnect from HashPack:', error);
+      console.error('Failed to disconnect:', error);
     }
-  }, []);
+  }, [hashconnect, saveData.topic]);
 
   const verifySignature = useCallback(async () => {
-    if (!window.hashpack || !accountId) return;
-
+    if (!hashconnect || !saveData.pairedWalletData || !accountId) return;
+    
     setLoading(true);
     try {
       const challenge = `Homebaise verify ${accountId} ${Date.now()}`;
-      const result = await window.hashpack.signMessage(challenge);
+      const messageBytes = new TextEncoder().encode(challenge);
       
-      // Convert signature to hex if needed
-      const signatureHex = result.signature;
+      // Get the signer for the connected account
+      const provider = hashconnect.getProvider("testnet", saveData.topic, accountId);
+      const signer = hashconnect.getSigner(provider);
+      
+      // Sign the message
+      const signature = await signer.sign(messageBytes);
+      const signatureHex = Array.from(signature).map((b: unknown) => (b as number).toString(16).padStart(2, '0')).join('');
       
       onVerified?.(accountId, signatureHex);
       setStatus('verified');
@@ -108,14 +336,56 @@ export default function WalletConnect({
     } finally {
       setLoading(false);
     }
-  }, [accountId, onVerified]);
+  }, [accountId, hashconnect, saveData, onVerified]);
 
-  if (!hashpackAvailable) {
+  if (status === 'error') {
+    return (
+      <div className="flex flex-col gap-3">
+        <div className="text-red-400 text-sm">
+          HashConnect package not available
+        </div>
+        <div className="text-gray-400 text-xs">
+          Please install HashConnect: npm install hashconnect
+        </div>
+        <a 
+          href="https://hashpack.app/" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="border border-white/20 bg-white/5 text-white px-3 py-2 rounded-lg hover:bg-white/10 transition-all text-center"
+        >
+          Install HashPack
+        </a>
+      </div>
+    );
+  }
+
+  if (status === 'encryption_error') {
     return (
       <div className="flex flex-col gap-3">
         <div className="text-yellow-400 text-sm">
-          HashPack wallet not detected
+          HashConnect encryption error
         </div>
+        <div className="text-gray-400 text-xs">
+          This may be due to a version mismatch or browser compatibility issue
+        </div>
+        <div className="text-gray-400 text-xs">
+          Try refreshing the page or clearing browser cache
+        </div>
+        <button 
+          onClick={() => {
+            localStorage.removeItem("hashconnectData");
+            window.location.reload();
+          }}
+          className="border border-white/20 bg-white/5 text-white px-3 py-2 rounded-lg hover:bg-white/10 transition-all"
+        >
+          Clear Session & Refresh
+        </button>
+        <button 
+          onClick={() => window.location.reload()}
+          className="border border-white/20 bg-white/5 text-white px-3 py-2 rounded-lg hover:bg-white/10 transition-all"
+        >
+          Refresh Page
+        </button>
         <a 
           href="https://hashpack.app/" 
           target="_blank" 
@@ -132,12 +402,51 @@ export default function WalletConnect({
     return (
       <div className="flex flex-col gap-3">
         <button 
-          onClick={connectWallet} 
-          disabled={loading}
+          onClick={connectToLocalWallet} 
+          disabled={loading || status !== 'ready'}
           className="border border-white/20 bg-white/5 text-white px-3 py-2 rounded-lg hover:bg-white/10 transition-all disabled:opacity-50"
         >
           {loading ? 'Connecting...' : 'Connect HashPack'}
         </button>
+        
+        {pairingString && (
+          <div className="space-y-2">
+            <button 
+              onClick={() => setShowQR(!showQR)}
+              className="text-sm text-gray-400 hover:text-white"
+            >
+              {showQR ? 'Hide QR Code' : 'Show QR Code for Manual Connection'}
+            </button>
+            
+            {showQR && (
+              <div className="bg-white p-4 rounded-lg">
+                <p className="text-xs text-black mb-2 font-semibold">📱 Connect with HashPack Mobile App</p>
+                <p className="text-xs text-black break-all bg-gray-100 p-2 rounded">{pairingString}</p>
+                <div className="text-xs text-gray-600 mt-2 space-y-1">
+                  <p>1. Open HashPack mobile app</p>
+                  <p>2. Tap "Connect Wallet" or scan QR code</p>
+                  <p>3. Enter the pairing string above</p>
+                  <p>4. Approve the connection</p>
+                </div>
+                <div className="text-xs text-emerald-600 mt-2 font-medium">
+                  ✅ Manual connection bypasses encryption issues
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+        
+        {status === 'ready' && !showQR && (
+          <div className="text-xs text-gray-400">
+            HashConnect ready - click "Connect HashPack" to pair with your wallet
+          </div>
+        )}
+        
+        {showQR && (
+          <div className="text-xs text-emerald-400">
+            🔄 Using manual connection mode - scan QR code with HashPack mobile app
+          </div>
+        )}
       </div>
     );
   }
