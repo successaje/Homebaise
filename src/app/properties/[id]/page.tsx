@@ -277,9 +277,11 @@ export default function PropertyDetailPage() {
 
                   {/* Invest Button */}
                   <MagneticEffect>
-                    <button className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white py-4 px-6 rounded-xl font-semibold hover:shadow-lg hover:shadow-emerald-500/25 transition-all duration-300 hover-lift mt-6">
-                      Invest Now
-                    </button>
+                    <Link href={`/properties/${property.id}/invest`}>
+                      <button className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white py-4 px-6 rounded-xl font-semibold hover:shadow-lg hover:shadow-emerald-500/25 transition-all duration-300 hover-lift mt-6">
+                        Invest Now
+                      </button>
+                    </Link>
                   </MagneticEffect>
                 </div>
 

@@ -89,6 +89,9 @@ export default function Dashboard() {
             </Link>
             <div className="flex items-center space-x-4">
               <Link href="/properties" className="text-gray-300 hover:text-white">Properties</Link>
+              <Link href="/portfolio" className="text-gray-300 hover:text-white">Portfolio</Link>
+              <Link href="/analytics" className="text-gray-300 hover:text-white">Analytics</Link>
+              <Link href="/admin" className="text-gray-300 hover:text-white">Admin</Link>
               <Link href="/profile" className="text-gray-300 hover:text-white">Profile</Link>
               <MagneticEffect>
                 <button
@@ -122,12 +125,30 @@ export default function Dashboard() {
                 </p>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <MagneticEffect>
                   <Link href="/properties">
                     <div className="bg-white/5 border border-white/10 rounded-xl p-6 hover:bg-white/10 transition-all duration-300 hover-lift">
                       <h3 className="text-xl font-semibold text-white mb-2">Browse Properties</h3>
                       <p className="text-gray-400">Discover and invest in tokenized African real estate opportunities</p>
+                    </div>
+                  </Link>
+                </MagneticEffect>
+                
+                <MagneticEffect>
+                  <Link href="/portfolio">
+                    <div className="bg-white/5 border border-white/10 rounded-xl p-6 hover:bg-white/10 transition-all duration-300 hover-lift">
+                      <h3 className="text-xl font-semibold text-white mb-2">My Portfolio</h3>
+                      <p className="text-gray-400">Track your investments, returns, and portfolio performance</p>
+                    </div>
+                  </Link>
+                </MagneticEffect>
+                
+                <MagneticEffect>
+                  <Link href="/analytics">
+                    <div className="bg-white/5 border border-white/10 rounded-xl p-6 hover:bg-white/10 transition-all duration-300 hover-lift">
+                      <h3 className="text-xl font-semibold text-white mb-2">Analytics</h3>
+                      <p className="text-gray-400">View detailed investment analytics and performance insights</p>
                     </div>
                   </Link>
                 </MagneticEffect>
