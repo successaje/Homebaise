@@ -81,14 +81,20 @@ export default function Home() {
             </MagneticEffect>
             
             <div className="hidden md:flex items-center space-x-8">
-              <Link href="#features" className="text-gray-300 hover:text-white transition-colors hover-scale">
-                Features
-              </Link>
-              <Link href="#properties" className="text-gray-300 hover:text-white transition-colors hover-scale">
+              <Link href="/properties" className="text-gray-300 hover:text-white transition-colors hover-scale">
                 Properties
               </Link>
-              <Link href="#how-it-works" className="text-gray-300 hover:text-white transition-colors hover-scale">
-                How It Works
+              <Link href="/agriculture" className="text-gray-300 hover:text-white transition-colors hover-scale">
+                Agriculture
+              </Link>
+              <Link href="/community" className="text-gray-300 hover:text-white transition-colors hover-scale">
+                Community
+              </Link>
+              <Link href="/market" className="text-gray-300 hover:text-white transition-colors hover-scale">
+                Market
+              </Link>
+              <Link href="/yield" className="text-gray-300 hover:text-white transition-colors hover-scale">
+                Yield
               </Link>
             </div>
             
@@ -511,3 +517,4 @@ export default function Home() {
     </div>
   );
 }
+

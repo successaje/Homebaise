@@ -102,7 +102,7 @@ const mockBlogPosts: BlogPost[] = [
   {
     id: '5',
     title: 'Agricultural Investment Opportunities in Sub-Saharan Africa',
-    excerpt: 'Explore the untapped potential of agricultural real estate investments in Africa and how they're providing sustainable returns for investors.',
+    excerpt: 'Explore the untapped potential of agricultural real estate investments in Africa and how they\'re providing sustainable returns for investors.',
     content: 'Full article content here...',
     author: {
       name: 'Dr. Kwame Asante',
