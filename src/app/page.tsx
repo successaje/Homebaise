@@ -84,6 +84,9 @@ export default function Home() {
               <Link href="/properties" className="text-gray-300 hover:text-white transition-colors hover-scale">
                 Properties
               </Link>
+              <Link href="/list-property" className="text-gray-300 hover:text-white transition-colors hover-scale">
+                List Property
+              </Link>
               <Link href="/agriculture" className="text-gray-300 hover:text-white transition-colors hover-scale">
                 Agriculture
               </Link>

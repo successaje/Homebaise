@@ -120,17 +120,26 @@ export default function Dashboard() {
                   size="lg"
                   showVerifiedBadge={true}
                 />
-                <p className="text-gray-400 mt-2">
+                <div className="text-gray-400 mt-2">
                   {user?.email} • <KYCStatus status={profile?.kyc_status} showIcon={false} />
-                </p>
+                </div>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
                 <MagneticEffect>
                   <Link href="/properties">
                     <div className="bg-white/5 border border-white/10 rounded-xl p-6 hover:bg-white/10 transition-all duration-300 hover-lift">
                       <h3 className="text-xl font-semibold text-white mb-2">Browse Properties</h3>
                       <p className="text-gray-400">Discover and invest in tokenized African real estate opportunities</p>
+                    </div>
+                  </Link>
+                </MagneticEffect>
+                
+                <MagneticEffect>
+                  <Link href="/list-property">
+                    <div className="bg-white/5 border border-white/10 rounded-xl p-6 hover:bg-white/10 transition-all duration-300 hover-lift">
+                      <h3 className="text-xl font-semibold text-white mb-2">List Property</h3>
+                      <p className="text-gray-400">Tokenize and list your real estate for global investment</p>
                     </div>
                   </Link>
                 </MagneticEffect>

@@ -9,6 +9,8 @@ import VerifiedBadge from '@/components/VerifiedBadge';
 import KYCStatus from '@/components/KYCStatus';
 import KYCVerification from '@/components/KYCVerification';
 import dynamic from 'next/dynamic';
+import HederaAccountCreator from '@/components/HederaAccountCreator';
+import { ensureProfileExists } from '@/lib/profile';
 
 // Dynamically import WalletConnect to avoid SSR issues
 const WalletConnect = dynamic(() => import('@/components/WalletConnect'), {
@@ -23,6 +25,9 @@ interface ProfileRow {
   avatar_url: string | null;
   provider: string | null;
   wallet_address: string | null;
+  hedera_evm_address: string | null;
+  hedera_private_key: string | null;
+  hedera_public_key: string | null;
   kyc_status: 'unverified' | 'pending' | 'verified' | null;
 }
 
@@ -33,6 +38,7 @@ export default function ProfilePage() {
   const [fullName, setFullName] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
   const [walletAddress, setWalletAddress] = useState('');
+  const [showHederaCreator, setShowHederaCreator] = useState(false);
 
   const updateProfileStatus = (newStatus: 'unverified' | 'pending' | 'verified') => {
     if (profile) {
@@ -51,9 +57,12 @@ export default function ProfilePage() {
         return;
       }
 
+      // Make sure a profile row exists for the authenticated user
+      await ensureProfileExists();
+
       const { data } = await supabase
         .from('profiles')
-        .select('id,email,full_name,avatar_url,provider,wallet_address,kyc_status')
+        .select('id,email,full_name,avatar_url,provider,wallet_address,hedera_evm_address,hedera_private_key,hedera_public_key,kyc_status')
         .eq('id', session.user.id)
         .single();
 
@@ -62,6 +71,20 @@ export default function ProfilePage() {
         setFullName(data.full_name || '');
         setAvatarUrl(data.avatar_url || '');
         setWalletAddress(data.wallet_address || '');
+      } else {
+        // Fallback: populate minimal profile shape so the page is not blank
+        setProfile({
+          id: session.user.id,
+          email: session.user.email ?? null,
+          full_name: null,
+          avatar_url: null,
+          provider: 'email',
+          wallet_address: null,
+          hedera_evm_address: null,
+          hedera_private_key: null,
+          hedera_public_key: null,
+          kyc_status: 'unverified'
+        });
       }
       setLoading(false);
     };
@@ -96,6 +119,23 @@ export default function ProfilePage() {
     setSaving(false);
   };
 
+  const onHederaAccountCreated = async (accountId: string, evmAddress: string) => {
+    setWalletAddress(accountId);
+    setShowHederaCreator(false);
+    // Refresh profile data
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id,email,full_name,avatar_url,provider,wallet_address,hedera_evm_address,hedera_private_key,hedera_public_key,kyc_status')
+        .eq('id', session.user.id)
+        .single();
+      if (data) {
+        setProfile(data as ProfileRow);
+      }
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
@@ -104,7 +144,13 @@ export default function ProfilePage() {
     );
   }
 
-  if (!profile) return null;
+  if (!profile) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-gray-300">Unable to load profile. Please try refreshing.</div>
+      </div>
+    );
+  }
 
   const verified = profile.kyc_status === 'verified';
 
@@ -182,6 +228,46 @@ export default function ProfilePage() {
                     className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-300"
                     placeholder="0.0.xxxxx"
                   />
+                </div>
+
+                {/* Hedera Account Creation Section */}
+                <div className="pt-2">
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="block text-sm font-medium text-gray-300">Or create a Hedera Account</label>
+                    {!showHederaCreator && (
+                      <button
+                        onClick={() => setShowHederaCreator(true)}
+                        className="px-3 py-2 rounded-lg text-sm bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 transition-colors"
+                      >
+                        Create Hedera Account
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Show existing Hedera details if available */}
+                  {!showHederaCreator && (profile.hedera_evm_address || profile.wallet_address) && (
+                    <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-3">
+                      {profile.wallet_address && (
+                        <div>
+                          <div className="text-xs text-gray-400">Hedera Account ID</div>
+                          <div className="text-sm text-emerald-300 font-mono break-all">{profile.wallet_address}</div>
+                        </div>
+                      )}
+                      {profile.hedera_evm_address && (
+                        <div>
+                          <div className="text-xs text-gray-400">EVM Address</div>
+                          <div className="text-sm text-emerald-300 font-mono break-all">{profile.hedera_evm_address}</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {showHederaCreator && (
+                    <HederaAccountCreator
+                      onAccountCreated={onHederaAccountCreated}
+                      className="mt-2"
+                    />
+                  )}
                 </div>
 
                 <div>
