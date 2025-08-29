@@ -12,6 +12,7 @@ interface HederaAccountCreatorProps {
 interface AccountDetails {
   accountId: string;
   evmAddress: string;
+  privateKey: string;
   balance: number;
 }
 
@@ -20,6 +21,7 @@ export default function HederaAccountCreator({ onAccountCreated, className = '' 
   const [showDetails, setShowDetails] = useState(false);
   const [accountDetails, setAccountDetails] = useState<AccountDetails | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showPrivateKey, setShowPrivateKey] = useState(false);
 
   const createAccount = async () => {
     setIsCreating(true);
@@ -47,7 +49,12 @@ export default function HederaAccountCreator({ onAccountCreated, className = '' 
         throw new Error(result.error || 'Failed to create account');
       }
 
-      setAccountDetails(result.account);
+      setAccountDetails({
+        accountId: result.account.accountId,
+        evmAddress: result.account.evmAddress,
+        privateKey: result.account.privateKey || 'Private key not available',
+        balance: result.account.balance
+      });
       setShowDetails(true);
       onAccountCreated(result.account.accountId, result.account.evmAddress);
 
@@ -61,8 +68,16 @@ export default function HederaAccountCreator({ onAccountCreated, className = '' 
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
-    // You could add a toast notification here
-    console.log(`${label} copied to clipboard`);
+    // Show a temporary notification
+    const notification = document.createElement('div');
+    notification.textContent = `${label} copied!`;
+    notification.className = 'fixed top-4 right-4 bg-emerald-500 text-white px-4 py-2 rounded-lg z-50 transition-opacity duration-300';
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+      notification.style.opacity = '0';
+      setTimeout(() => document.body.removeChild(notification), 300);
+    }, 2000);
   };
 
   if (showDetails && accountDetails) {
@@ -117,6 +132,46 @@ export default function HederaAccountCreator({ onAccountCreated, className = '' 
             </div>
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Private Key</label>
+            <div className="space-y-2">
+              <div className="flex items-center space-x-2">
+                <code className="flex-1 px-3 py-2 bg-black/20 border border-white/10 rounded-lg text-emerald-400 font-mono text-sm">
+                  {showPrivateKey ? accountDetails.privateKey : '••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••'}
+                </code>
+                <MagneticEffect>
+                  <button
+                    onMouseDown={() => setShowPrivateKey(true)}
+                    onMouseUp={() => setShowPrivateKey(false)}
+                    onMouseLeave={() => setShowPrivateKey(false)}
+                    onTouchStart={() => setShowPrivateKey(true)}
+                    onTouchEnd={() => setShowPrivateKey(false)}
+                    className="px-3 py-2 bg-red-500/20 border border-red-500/30 rounded-lg text-red-400 hover:bg-red-500/30 transition-colors"
+                  >
+                    Hold to Reveal
+                  </button>
+                </MagneticEffect>
+                <MagneticEffect>
+                  <button
+                    onClick={() => copyToClipboard(accountDetails.privateKey, 'Private Key')}
+                    className="px-3 py-2 bg-emerald-500/20 border border-emerald-500/30 rounded-lg text-emerald-400 hover:bg-emerald-500/30 transition-colors"
+                  >
+                    Copy
+                  </button>
+                </MagneticEffect>
+              </div>
+              <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
+                <div className="flex items-start">
+                  <span className="text-red-400 mr-2">🚨</span>
+                  <div className="text-sm text-red-300">
+                    <p className="font-medium mb-1">CRITICAL: Save your private key immediately!</p>
+                    <p>If you lose this private key, you will permanently lose access to your funds. Write it down and store it securely offline.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4 mt-4">
             <div className="flex items-start">
               <span className="text-yellow-400 mr-2">⚠️</span>
@@ -150,7 +205,7 @@ export default function HederaAccountCreator({ onAccountCreated, className = '' 
 
       <div className="space-y-4">
         <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-4">
-          <h4 className="font-medium text-emerald-400 mb-2">What you'll get:</h4>
+          <h4 className="font-medium text-emerald-400 mb-2">What you&apos;ll get:</h4>
           <ul className="text-sm text-emerald-300 space-y-1">
             <li>• A new Hedera account with unique Account ID</li>
             <li>• EVM-compatible address for DeFi interactions</li>
@@ -183,7 +238,7 @@ export default function HederaAccountCreator({ onAccountCreated, className = '' 
         </MagneticEffect>
 
         <p className="text-xs text-gray-500 text-center">
-          This process may take a few seconds. Please don't close this page.
+          This process may take a few seconds. Please don&apos;t close this page.
         </p>
       </div>
     </div>

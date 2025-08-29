@@ -6,8 +6,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import MagneticEffect from '@/components/MagneticEffect';
 import ScrollAnimations from '@/components/ScrollAnimations';
-import { formatNumber, formatCurrency, getPropertyTypeLabel, getCountryFlag } from '@/lib/utils';
-import { properties } from '@/data/mockProperties';
+import { formatCurrency } from '@/lib/utils';
 
 interface AdminStats {
   totalUsers: number;
@@ -18,6 +17,31 @@ interface AdminStats {
   pendingKYC: number;
   monthlyRevenue: number;
   platformROI: number;
+}
+
+interface AdminProperty {
+  id: string;
+  name: string;
+  title?: string; // For backward compatibility
+  description: string;
+  location: string;
+  country: string;
+  city: string;
+  address: string;
+  property_type: string;
+  total_value: number;
+  funded_amount_usd: number;
+  funded_percent: number;
+  yield_rate: string;
+  status: 'draft' | 'pending' | 'pending_review' | 'active' | 'funded' | 'completed' | 'cancelled' | 'approved' | 'rejected';
+  images: string[];
+  ipfs_image_cids?: string[];
+  created_at: string;
+  updated_at: string;
+  approved_at: string | null;
+  approved_by: string | null;
+  rejection_reason: string | null;
+  listed_by: string;
 }
 
 interface AdminUser {
@@ -101,12 +125,14 @@ const mockAdminInvestments: AdminInvestment[] = [
 ];
 
 export default function AdminPage() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<{ id: string; email: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'properties' | 'investments' | 'kyc'>('overview');
   const [stats, setStats] = useState<AdminStats>(mockAdminStats);
   const [users, setUsers] = useState<AdminUser[]>(mockAdminUsers);
   const [investments, setInvestments] = useState<AdminInvestment[]>(mockAdminInvestments);
+  const [properties, setProperties] = useState<AdminProperty[]>([]);
+  const [propertiesLoading, setPropertiesLoading] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -125,6 +151,130 @@ export default function AdminPage() {
 
     getUser();
   }, [router]);
+
+  const fetchProperties = async () => {
+    setPropertiesLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('properties')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching properties:', error);
+      } else {
+        setProperties(data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching properties:', error);
+    } finally {
+      setPropertiesLoading(false);
+    }
+  };
+
+  const updatePropertyStatus = async (propertyId: string, newStatus: AdminProperty['status'], rejectionReason?: string) => {
+    try {
+      const updateData: {
+        status: AdminProperty['status'];
+        updated_at: string;
+        approved_at?: string;
+        approved_by?: string;
+        rejection_reason?: string | null;
+      } = {
+        status: newStatus,
+        updated_at: new Date().toISOString()
+      };
+
+      if (newStatus === 'active' || newStatus === 'funded' || newStatus === 'completed') {
+        updateData.approved_at = new Date().toISOString();
+        updateData.approved_by = user?.id;
+        updateData.rejection_reason = null;
+      } else if (newStatus === 'cancelled') {
+        updateData.rejection_reason = rejectionReason || 'Property cancelled by admin';
+      }
+
+      const { error } = await supabase
+        .from('properties')
+        .update(updateData)
+        .eq('id', propertyId);
+
+      if (error) {
+        console.error('Error updating property status:', error);
+        // Show error notification
+        const notification = document.createElement('div');
+        notification.textContent = 'Failed to update property status';
+        notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg z-50 transition-opacity duration-300';
+        document.body.appendChild(notification);
+        setTimeout(() => {
+          notification.style.opacity = '0';
+          setTimeout(() => document.body.removeChild(notification), 300);
+        }, 3000);
+      } else {
+        // Show success notification
+        const notification = document.createElement('div');
+        notification.textContent = 'Property status updated successfully';
+        notification.className = 'fixed top-4 right-4 bg-emerald-500 text-white px-4 py-2 rounded-lg z-50 transition-opacity duration-300';
+        document.body.appendChild(notification);
+        setTimeout(() => {
+          notification.style.opacity = '0';
+          setTimeout(() => document.body.removeChild(notification), 300);
+        }, 3000);
+        
+        // Refresh properties
+        fetchProperties();
+      }
+    } catch (error) {
+      console.error('Error updating property status:', error);
+    }
+  };
+
+  const deleteProperty = async (propertyId: string) => {
+    if (!confirm('Are you sure you want to delete this property? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('properties')
+        .delete()
+        .eq('id', propertyId);
+
+      if (error) {
+        console.error('Error deleting property:', error);
+        // Show error notification
+        const notification = document.createElement('div');
+        notification.textContent = 'Failed to delete property';
+        notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg z-50 transition-opacity duration-300';
+        document.body.appendChild(notification);
+        setTimeout(() => {
+          notification.style.opacity = '0';
+          setTimeout(() => document.body.removeChild(notification), 300);
+        }, 3000);
+      } else {
+        // Show success notification
+        const notification = document.createElement('div');
+        notification.textContent = 'Property deleted successfully';
+        notification.className = 'fixed top-4 right-4 bg-emerald-500 text-white px-4 py-2 rounded-lg z-50 transition-opacity duration-300';
+        document.body.appendChild(notification);
+        setTimeout(() => {
+          notification.style.opacity = '0';
+          setTimeout(() => document.body.removeChild(notification), 300);
+        }, 3000);
+        
+        // Refresh properties
+        fetchProperties();
+      }
+    } catch (error) {
+      console.error('Error deleting property:', error);
+    }
+  };
+
+  // Fetch properties when properties tab is active
+  useEffect(() => {
+    if (activeTab === 'properties') {
+      fetchProperties();
+    }
+  }, [activeTab]);
 
   if (loading) {
     return (
@@ -190,7 +340,7 @@ export default function AdminPage() {
               ].map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
+                  onClick={() => setActiveTab(tab.id as 'overview' | 'users' | 'properties' | 'investments' | 'kyc')}
                   className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                     activeTab === tab.id
                       ? 'bg-emerald-500 text-white'
@@ -356,39 +506,152 @@ export default function AdminPage() {
                   </MagneticEffect>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {properties.map((property) => (
-                    <div key={property.id} className="bg-white/5 border border-white/10 rounded-xl p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="text-white font-semibold">{property.name}</h4>
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs border ${getStatusColor(property.status)}`}>
-                          {property.status}
-                        </span>
-                      </div>
-                      
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-gray-400">Value</span>
-                          <span className="text-white">{formatNumber(property.totalValueUSD)}</span>
+                {propertiesLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                  </div>
+                ) : properties.length === 0 ? (
+                  <div className="text-center py-12">
+                    <div className="text-4xl mb-4">🏠</div>
+                    <h3 className="text-white font-semibold mb-2">No Properties Found</h3>
+                    <p className="text-gray-400">No properties have been added yet.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {properties.map((property) => (
+                      <div key={property.id} className="bg-white/5 border border-white/10 rounded-xl p-4">
+                        {/* Property Image */}
+                        {(property.images && property.images.length > 0) || (property.ipfs_image_cids && property.ipfs_image_cids.length > 0) ? (
+                          <div className="mb-3">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img 
+                              src={property.images?.[0] || `https://gateway.pinata.cloud/ipfs/${property.ipfs_image_cids?.[0]}`} 
+                              alt={property.name || property.title || 'Property'}
+                              className="w-full h-32 object-cover rounded-lg"
+                            />
+                          </div>
+                        ) : null}
+                        
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="text-white font-semibold text-sm">{property.name || property.title}</h4>
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs border ${getStatusColor(property.status)}`}>
+                            {property.status}
+                          </span>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-400">Funded</span>
-                          <span className="text-white">{property.fundedPercent}%</span>
+                        
+                        <div className="space-y-2 text-sm mb-4">
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Location</span>
+                            <span className="text-white">{property.location || property.city}, {property.country}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Type</span>
+                            <span className="text-white capitalize">{property.property_type}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Value</span>
+                            <span className="text-white">{formatCurrency(property.total_value)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Funded</span>
+                            <span className="text-white">{property.funded_percent}%</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Yield</span>
+                            <span className="text-emerald-400">{property.yield_rate}</span>
+                          </div>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-400">Yield</span>
-                          <span className="text-emerald-400">{property.yieldRate}</span>
+                        
+                        {/* Status Update Actions */}
+                        <div className="space-y-2">
+                          {property.status === 'draft' && (
+                            <div className="flex space-x-2">
+                              <button 
+                                onClick={() => updatePropertyStatus(property.id, 'pending')}
+                                className="flex-1 bg-blue-500/20 border border-blue-500/30 text-blue-400 py-1 px-2 rounded text-xs hover:bg-blue-500/30 transition-colors"
+                              >
+                                Submit for Review
+                              </button>
+                            </div>
+                          )}
+                          
+                          {property.status === 'pending' && (
+                            <div className="flex space-x-2">
+                              <button 
+                                onClick={() => updatePropertyStatus(property.id, 'active')}
+                                className="flex-1 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 py-1 px-2 rounded text-xs hover:bg-emerald-500/30 transition-colors"
+                              >
+                                Approve
+                              </button>
+                              <button 
+                                onClick={() => {
+                                  const reason = prompt('Enter rejection reason:');
+                                  if (reason) {
+                                    updatePropertyStatus(property.id, 'cancelled', reason);
+                                  }
+                                }}
+                                className="flex-1 bg-red-500/20 border border-red-500/30 text-red-400 py-1 px-2 rounded text-xs hover:bg-red-500/30 transition-colors"
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          )}
+                          
+                          {property.status === 'active' && (
+                            <div className="flex space-x-2">
+                              <button 
+                                onClick={() => updatePropertyStatus(property.id, 'funded')}
+                                className="flex-1 bg-purple-500/20 border border-purple-500/30 text-purple-400 py-1 px-2 rounded text-xs hover:bg-purple-500/30 transition-colors"
+                              >
+                                Mark Funded
+                              </button>
+                              <button 
+                                onClick={() => updatePropertyStatus(property.id, 'cancelled')}
+                                className="flex-1 bg-red-500/20 border border-red-500/30 text-red-400 py-1 px-2 rounded text-xs hover:bg-red-500/30 transition-colors"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          )}
+                          
+                          {property.status === 'funded' && (
+                            <div className="flex space-x-2">
+                              <button 
+                                onClick={() => updatePropertyStatus(property.id, 'completed')}
+                                className="flex-1 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 py-1 px-2 rounded text-xs hover:bg-emerald-500/30 transition-colors"
+                              >
+                                Mark Completed
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* General Actions */}
+                        <div className="mt-3 flex space-x-2">
+                          <button className="text-emerald-400 hover:text-emerald-300 text-xs">Edit</button>
+                          <button className="text-blue-400 hover:text-blue-300 text-xs">View</button>
+                          <button 
+                            onClick={() => deleteProperty(property.id)}
+                            className="text-red-400 hover:text-red-300 text-xs"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                        
+                        {/* Property Details */}
+                        <div className="mt-3 text-xs text-gray-400">
+                          <div>Created: {new Date(property.created_at).toLocaleDateString()}</div>
+                          {property.approved_at && (
+                            <div>Approved: {new Date(property.approved_at).toLocaleDateString()}</div>
+                          )}
+                          {property.rejection_reason && (
+                            <div className="text-red-400">Rejected: {property.rejection_reason}</div>
+                          )}
                         </div>
                       </div>
-                      
-                      <div className="mt-4 flex space-x-2">
-                        <button className="text-emerald-400 hover:text-emerald-300 text-sm">Edit</button>
-                        <button className="text-blue-400 hover:text-blue-300 text-sm">View</button>
-                        <button className="text-red-400 hover:text-red-300 text-sm">Delete</button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 

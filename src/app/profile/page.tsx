@@ -29,6 +29,7 @@ interface ProfileRow {
   hedera_private_key: string | null;
   hedera_public_key: string | null;
   kyc_status: 'unverified' | 'pending' | 'verified' | null;
+  kyc_verified_at: string | null;
 }
 
 export default function ProfilePage() {
@@ -62,7 +63,7 @@ export default function ProfilePage() {
 
       const { data } = await supabase
         .from('profiles')
-        .select('id,email,full_name,avatar_url,provider,wallet_address,hedera_evm_address,hedera_private_key,hedera_public_key,kyc_status')
+        .select('id,email,full_name,avatar_url,provider,wallet_address,hedera_evm_address,hedera_private_key,hedera_public_key,kyc_status,kyc_verified_at')
         .eq('id', session.user.id)
         .single();
 
@@ -83,7 +84,8 @@ export default function ProfilePage() {
           hedera_evm_address: null,
           hedera_private_key: null,
           hedera_public_key: null,
-          kyc_status: 'unverified'
+          kyc_status: 'unverified',
+          kyc_verified_at: null
         });
       }
       setLoading(false);
@@ -106,7 +108,15 @@ export default function ProfilePage() {
   };
 
   const onWalletConnected = async (acc: string) => {
+    // External wallet connected; save immediately and hide Hedera creator.
     setWalletAddress(acc);
+    setShowHederaCreator(false);
+    if (profile) {
+      await supabase
+        .from('profiles')
+        .update({ wallet_address: acc })
+        .eq('id', profile.id);
+    }
   };
 
   const onWalletVerified = async (acc: string, signatureHex: string) => {
@@ -127,7 +137,7 @@ export default function ProfilePage() {
     if (session) {
       const { data } = await supabase
         .from('profiles')
-        .select('id,email,full_name,avatar_url,provider,wallet_address,hedera_evm_address,hedera_private_key,hedera_public_key,kyc_status')
+        .select('id,email,full_name,avatar_url,provider,wallet_address,hedera_evm_address,hedera_private_key,hedera_public_key,kyc_status,kyc_verified_at')
         .eq('id', session.user.id)
         .single();
       if (data) {
@@ -153,6 +163,8 @@ export default function ProfilePage() {
   }
 
   const verified = profile.kyc_status === 'verified';
+  const hasExternalWallet = Boolean(walletAddress && walletAddress.startsWith('0x'));
+  const hasHederaAccount = Boolean(profile.hedera_evm_address || (profile.wallet_address && profile.wallet_address.startsWith('0.')));
 
   return (
     <div className="min-h-screen bg-black particles">
@@ -234,7 +246,7 @@ export default function ProfilePage() {
                 <div className="pt-2">
                   <div className="flex items-center justify-between mb-3">
                     <label className="block text-sm font-medium text-gray-300">Or create a Hedera Account</label>
-                    {!showHederaCreator && (
+                    {!hasExternalWallet && !hasHederaAccount && !showHederaCreator && (
                       <button
                         onClick={() => setShowHederaCreator(true)}
                         className="px-3 py-2 rounded-lg text-sm bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 transition-colors"
@@ -245,28 +257,78 @@ export default function ProfilePage() {
                   </div>
 
                   {/* Show existing Hedera details if available */}
-                  {!showHederaCreator && (profile.hedera_evm_address || profile.wallet_address) && (
+                  {!showHederaCreator && (profile.hedera_evm_address || hasHederaAccount) && (
                     <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-3">
-                      {profile.wallet_address && (
+                      {hasHederaAccount && (
                         <div>
                           <div className="text-xs text-gray-400">Hedera Account ID</div>
-                          <div className="text-sm text-emerald-300 font-mono break-all">{profile.wallet_address}</div>
+                          <div className="flex items-center space-x-2">
+                            <code className="flex-1 px-3 py-2 bg-black/20 border border-white/10 rounded-lg text-emerald-400 font-mono text-sm break-all">
+                              {profile.wallet_address}
+                            </code>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(profile.wallet_address || '');
+                                // Show a temporary notification
+                                const notification = document.createElement('div');
+                                notification.textContent = 'Hedera Account ID copied!';
+                                notification.className = 'fixed top-4 right-4 bg-emerald-500 text-white px-4 py-2 rounded-lg z-50 transition-opacity duration-300';
+                                document.body.appendChild(notification);
+                                
+                                setTimeout(() => {
+                                  notification.style.opacity = '0';
+                                  setTimeout(() => document.body.removeChild(notification), 300);
+                                }, 2000);
+                              }}
+                              className="px-3 py-2 bg-emerald-500/20 border border-emerald-500/30 rounded-lg text-emerald-400 hover:bg-emerald-500/30 transition-colors"
+                            >
+                              Copy
+                            </button>
+                          </div>
                         </div>
                       )}
                       {profile.hedera_evm_address && (
                         <div>
                           <div className="text-xs text-gray-400">EVM Address</div>
-                          <div className="text-sm text-emerald-300 font-mono break-all">{profile.hedera_evm_address}</div>
+                          <div className="flex items-center space-x-2">
+                            <code className="flex-1 px-3 py-2 bg-black/20 border border-white/10 rounded-lg text-emerald-400 font-mono text-sm break-all">
+                              {profile.hedera_evm_address}
+                            </code>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(profile.hedera_evm_address || '');
+                                // Show a temporary notification
+                                const notification = document.createElement('div');
+                                notification.textContent = 'EVM Address copied!';
+                                notification.className = 'fixed top-4 right-4 bg-emerald-500 text-white px-4 py-2 rounded-lg z-50 transition-opacity duration-300';
+                                document.body.appendChild(notification);
+                                
+                                setTimeout(() => {
+                                  notification.style.opacity = '0';
+                                  setTimeout(() => document.body.removeChild(notification), 300);
+                                }, 2000);
+                              }}
+                              className="px-3 py-2 bg-emerald-500/20 border border-emerald-500/30 rounded-lg text-emerald-400 hover:bg-emerald-500/30 transition-colors"
+                            >
+                              Copy
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>
                   )}
 
-                  {showHederaCreator && (
+                  {showHederaCreator && !hasExternalWallet && (
                     <HederaAccountCreator
                       onAccountCreated={onHederaAccountCreated}
                       className="mt-2"
                     />
+                  )}
+
+                  {hasExternalWallet && (
+                    <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3 text-sm text-yellow-300">
+                      External wallet connected. Hedera account creation is not required.
+                    </div>
                   )}
                 </div>
 
