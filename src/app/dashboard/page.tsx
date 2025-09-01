@@ -9,7 +9,7 @@ import ScrollAnimations from '@/components/ScrollAnimations'
 import VerifiedBadge from '@/components/VerifiedBadge'
 import KYCStatus from '@/components/KYCStatus'
 import UserAvatar from '@/components/UserAvatar'
-import DatabaseTest from '@/components/DatabaseTest'
+import UserCertificates from '@/components/UserCertificates'
 import { useRouter } from 'next/navigation'
 
 const supabase = createClient(
@@ -119,9 +119,10 @@ export default function DashboardPage() {
             <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-8 border border-white/10 mb-8">
               <div className="flex items-center space-x-6">
                 <UserAvatar 
-                  src={profile.avatar_url} 
-                  alt={profile.full_name || 'User'} 
+                  avatarUrl={profile.avatar_url} 
+                  fullName={profile.full_name}
                   size="xl"
+                  showName={false}
                   className="ring-4 ring-emerald-500/20"
                 />
                 <div className="flex-1">
@@ -259,6 +260,11 @@ export default function DashboardPage() {
               </MagneticEffect>
             </div>
 
+            {/* Certificates Section */}
+            <div className="mt-8">
+              <UserCertificates />
+            </div>
+
             {/* Recent Activity */}
             <div className="mt-8 bg-white/5 backdrop-blur-xl rounded-2xl p-8 border border-white/10">
               <h2 className="text-2xl font-bold text-white mb-6">Recent Activity</h2>
@@ -291,10 +297,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Database Test Component (Temporary) */}
-            <div className="mt-8">
-              <DatabaseTest />
-            </div>
+
           </ScrollAnimations>
         </div>
       </div>

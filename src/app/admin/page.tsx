@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import MagneticEffect from '@/components/MagneticEffect';
 import ScrollAnimations from '@/components/ScrollAnimations';
+import PropertyApprovalModal from '@/components/PropertyApprovalModal';
+import PropertyStatusBadge from '@/components/PropertyStatusBadge';
 import { formatCurrency } from '@/lib/utils';
 
 interface AdminStats {
@@ -133,6 +135,8 @@ export default function AdminPage() {
   const [investments, setInvestments] = useState<AdminInvestment[]>(mockAdminInvestments);
   const [properties, setProperties] = useState<AdminProperty[]>([]);
   const [propertiesLoading, setPropertiesLoading] = useState(false);
+  const [selectedProperty, setSelectedProperty] = useState<AdminProperty | null>(null);
+  const [approvalModalOpen, setApprovalModalOpen] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -172,60 +176,15 @@ export default function AdminPage() {
     }
   };
 
-  const updatePropertyStatus = async (propertyId: string, newStatus: AdminProperty['status'], rejectionReason?: string) => {
-    try {
-      const updateData: {
-        status: AdminProperty['status'];
-        updated_at: string;
-        approved_at?: string;
-        approved_by?: string;
-        rejection_reason?: string | null;
-      } = {
-        status: newStatus,
-        updated_at: new Date().toISOString()
-      };
+  const handlePropertyApproval = (property: AdminProperty) => {
+    setSelectedProperty(property);
+    setApprovalModalOpen(true);
+  };
 
-      if (newStatus === 'active' || newStatus === 'funded' || newStatus === 'completed') {
-        updateData.approved_at = new Date().toISOString();
-        updateData.approved_by = user?.id;
-        updateData.rejection_reason = null;
-      } else if (newStatus === 'cancelled') {
-        updateData.rejection_reason = rejectionReason || 'Property cancelled by admin';
-      }
-
-      const { error } = await supabase
-        .from('properties')
-        .update(updateData)
-        .eq('id', propertyId);
-
-      if (error) {
-        console.error('Error updating property status:', error);
-        // Show error notification
-        const notification = document.createElement('div');
-        notification.textContent = 'Failed to update property status';
-        notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg z-50 transition-opacity duration-300';
-        document.body.appendChild(notification);
-        setTimeout(() => {
-          notification.style.opacity = '0';
-          setTimeout(() => document.body.removeChild(notification), 300);
-        }, 3000);
-      } else {
-        // Show success notification
-        const notification = document.createElement('div');
-        notification.textContent = 'Property status updated successfully';
-        notification.className = 'fixed top-4 right-4 bg-emerald-500 text-white px-4 py-2 rounded-lg z-50 transition-opacity duration-300';
-        document.body.appendChild(notification);
-        setTimeout(() => {
-          notification.style.opacity = '0';
-          setTimeout(() => document.body.removeChild(notification), 300);
-        }, 3000);
-        
-        // Refresh properties
-        fetchProperties();
-      }
-    } catch (error) {
-      console.error('Error updating property status:', error);
-    }
+  const handleApprovalComplete = () => {
+    fetchProperties();
+    setApprovalModalOpen(false);
+    setSelectedProperty(null);
   };
 
   const deleteProperty = async (propertyId: string) => {
@@ -534,9 +493,12 @@ export default function AdminPage() {
                         
                         <div className="flex items-center justify-between mb-3">
                           <h4 className="text-white font-semibold text-sm">{property.name || property.title}</h4>
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs border ${getStatusColor(property.status)}`}>
-                            {property.status}
-                          </span>
+                          <PropertyStatusBadge 
+                            status={property.status} 
+                            isVerified={property.status === 'active'}
+                            hasCertificate={property.status === 'active'}
+                            size="sm"
+                          />
                         </div>
                         
                         <div className="space-y-2 text-sm mb-4">
@@ -578,21 +540,10 @@ export default function AdminPage() {
                           {property.status === 'pending' && (
                             <div className="flex space-x-2">
                               <button 
-                                onClick={() => updatePropertyStatus(property.id, 'active')}
+                                onClick={() => handlePropertyApproval(property)}
                                 className="flex-1 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 py-1 px-2 rounded text-xs hover:bg-emerald-500/30 transition-colors"
                               >
-                                Approve
-                              </button>
-                              <button 
-                                onClick={() => {
-                                  const reason = prompt('Enter rejection reason:');
-                                  if (reason) {
-                                    updatePropertyStatus(property.id, 'cancelled', reason);
-                                  }
-                                }}
-                                className="flex-1 bg-red-500/20 border border-red-500/30 text-red-400 py-1 px-2 rounded text-xs hover:bg-red-500/30 transition-colors"
-                              >
-                                Reject
+                                Review & Approve
                               </button>
                             </div>
                           )}
@@ -762,6 +713,16 @@ export default function AdminPage() {
           </ScrollAnimations>
         </div>
       </div>
+
+      {/* Property Approval Modal */}
+      {selectedProperty && (
+        <PropertyApprovalModal
+          property={selectedProperty}
+          isOpen={approvalModalOpen}
+          onClose={() => setApprovalModalOpen(false)}
+          onApproved={handleApprovalComplete}
+        />
+      )}
     </div>
   );
 } 
