@@ -214,4 +214,21 @@ export const uploadFileToIPFSMock = async (file: File): Promise<IPFSUploadResult
 // Export the appropriate function based on environment
 export const uploadFileToIPFSFinal = process.env.NEXT_PUBLIC_PINATA_JWT_TOKEN 
   ? uploadFileToIPFS 
-  : uploadFileToIPFSMock; 
+  : uploadFileToIPFSMock;
+
+/**
+ * Upload a string to IPFS using Pinata
+ * @param content - The string content to upload
+ * @param filename - Optional filename (defaults to 'content.txt')
+ * @returns Promise with IPFS upload result
+ */
+export const uploadToIPFS = async (content: string, filename: string = 'content.txt'): Promise<string> => {
+  try {
+    const file = new File([content], filename, { type: 'text/plain' });
+    const result = await uploadFileToIPFSFinal(file);
+    return `ipfs://${result.cid}/${filename}`;
+  } catch (error) {
+    console.error('Error uploading string to IPFS:', error);
+    throw error;
+  }
+}; 

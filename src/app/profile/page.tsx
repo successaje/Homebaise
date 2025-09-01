@@ -1,366 +1,347 @@
-'use client';
+'use client'
 
-import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
-import Link from 'next/link';
-import MagneticEffect from '@/components/MagneticEffect';
-import ScrollAnimations from '@/components/ScrollAnimations';
-import VerifiedBadge from '@/components/VerifiedBadge';
-import KYCStatus from '@/components/KYCStatus';
-import KYCVerification from '@/components/KYCVerification';
-import dynamic from 'next/dynamic';
-import HederaAccountCreator from '@/components/HederaAccountCreator';
-import { ensureProfileExists } from '@/lib/profile';
+import { useState, useEffect } from 'react'
+import { createClient } from '@supabase/supabase-js'
+import { getCurrentUserProfile, getBasicProfile, testSupabaseConnection, ProfileRow } from '@/lib/profile'
+import WalletConnect from '@/components/WalletConnect'
+import HederaAccountCreator from '@/components/HederaAccountCreator'
+import KYCVerification from '@/components/KYCVerification'
+import KYCStatus from '@/components/KYCStatus'
+import UserAvatar from '@/components/UserAvatar'
+import VerifiedBadge from '@/components/VerifiedBadge'
 
-// Dynamically import WalletConnect to avoid SSR issues
-const WalletConnect = dynamic(() => import('@/components/WalletConnect'), {
-  ssr: false,
-  loading: () => <div className="h-10 bg-white/5 border border-white/10 rounded-lg animate-pulse"></div>
-});
-
-interface ProfileRow {
-  id: string;
-  email: string | null;
-  full_name: string | null;
-  avatar_url: string | null;
-  provider: string | null;
-  wallet_address: string | null;
-  hedera_evm_address: string | null;
-  hedera_private_key: string | null;
-  hedera_public_key: string | null;
-  kyc_status: 'unverified' | 'pending' | 'verified' | null;
-  kyc_verified_at: string | null;
-}
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
 
 export default function ProfilePage() {
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [profile, setProfile] = useState<ProfileRow | null>(null);
-  const [fullName, setFullName] = useState('');
-  const [avatarUrl, setAvatarUrl] = useState('');
-  const [walletAddress, setWalletAddress] = useState('');
-  const [showHederaCreator, setShowHederaCreator] = useState(false);
-
-  const updateProfileStatus = (newStatus: 'unverified' | 'pending' | 'verified') => {
-    if (profile) {
-      setProfile({
-        ...profile,
-        kyc_status: newStatus
-      });
-    }
-  };
+  const [profile, setProfile] = useState<ProfileRow | null>(null)
+  const [fullName, setFullName] = useState('')
+  const [avatarUrl, setAvatarUrl] = useState('')
+  const [walletAddress, setWalletAddress] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [session, setSession] = useState<any>(null)
 
   useEffect(() => {
     const init = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        window.location.href = '/auth';
-        return;
+      console.log('Profile page - Starting initialization...')
+      
+      // Get current session
+      const { data: { session: currentSession } } = await supabase.auth.getSession()
+      setSession(currentSession)
+      
+      if (!currentSession) {
+        console.log('Profile page - No session found')
+        setLoading(false)
+        return
       }
 
-      // Make sure a profile row exists for the authenticated user
-      await ensureProfileExists();
+      console.log('Profile page - Session found:', currentSession.user.id)
 
-      const { data } = await supabase
-        .from('profiles')
-        .select('id,email,full_name,avatar_url,provider,wallet_address,hedera_evm_address,hedera_private_key,hedera_public_key,kyc_status,kyc_verified_at')
-        .eq('id', session.user.id)
-        .single();
+      // Use the API route to get profile data (server-side approach)
+      let profileData = null;
+      
+      try {
+        const response = await fetch('/api/profile', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
 
-      if (data) {
-        setProfile(data as ProfileRow);
-        setFullName(data.full_name || '');
-        setAvatarUrl(data.avatar_url || '');
-        setWalletAddress(data.wallet_address || '');
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Profile page - API response:', data);
+          
+          if (data.profile) {
+            profileData = data.profile;
+            console.log('Profile page - Profile from API:', profileData);
+          } else {
+            console.error('Profile page - No profile in API response');
+          }
+        } else {
+          console.error('Profile page - API error:', response.status, response.statusText);
+          const errorData = await response.json();
+          console.error('Profile page - API error details:', errorData);
+        }
+      } catch (apiError) {
+        console.error('Profile page - API fetch error:', apiError);
+      }
+
+      // Fallback to client-side approach if API fails
+      if (!profileData) {
+        console.log('Profile page - Falling back to client-side approach...');
+        
+        // First, test the Supabase connection
+        const connectionTest = await testSupabaseConnection();
+        console.log('Profile page - Connection test result:', connectionTest);
+
+        // Try to get complete profile first
+        profileData = await getCurrentUserProfile();
+        console.log('Profile page - Complete profile data:', profileData);
+
+        // If complete profile fails, try basic profile
+        if (!profileData) {
+          console.log('Profile page - Trying basic profile...');
+          profileData = await getBasicProfile();
+          console.log('Profile page - Basic profile data:', profileData);
+        }
+      }
+
+      if (profileData) {
+        console.log('Profile page - Setting profile data:', profileData);
+        setProfile(profileData as ProfileRow);
+        setFullName(profileData.full_name || '');
+        setAvatarUrl(profileData.avatar_url || '');
+        setWalletAddress(profileData.wallet_address || '');
+        console.log('Profile page - State variables set:', {
+          fullName: profileData.full_name || '',
+          avatarUrl: profileData.avatar_url || '',
+          walletAddress: profileData.wallet_address || ''
+        });
       } else {
-        // Fallback: populate minimal profile shape so the page is not blank
+        console.log('Profile page - Using fallback profile data');
+        // Create a fallback profile if none exists
         setProfile({
-          id: session.user.id,
-          email: session.user.email ?? null,
+          id: currentSession.user.id,
+          email: currentSession.user.email ?? null,
           full_name: null,
           avatar_url: null,
           provider: 'email',
+          role: 'user',
           wallet_address: null,
+          hedera_account_id: null,
           hedera_evm_address: null,
           hedera_private_key: null,
           hedera_public_key: null,
           kyc_status: 'unverified',
-          kyc_verified_at: null
+          kyc_verified_at: null,
+          created_at: null,
+          updated_at: null
         });
       }
+      
       setLoading(false);
     };
+
     init();
   }, []);
 
+  // Debug effect to monitor state changes
+  useEffect(() => {
+    console.log('Profile page - State updated:', {
+      profile,
+      fullName,
+      avatarUrl,
+      walletAddress,
+      loading
+    });
+  }, [profile, fullName, avatarUrl, walletAddress, loading]);
+
   const saveProfile = async () => {
-    if (!profile) return;
-    setSaving(true);
-    await supabase
+    if (!profile) return
+
+    const { error } = await supabase
       .from('profiles')
       .update({
-        full_name: fullName || null,
-        avatar_url: avatarUrl || null,
-        wallet_address: walletAddress || null,
+        full_name: fullName,
+        avatar_url: avatarUrl,
+        updated_at: new Date().toISOString()
       })
-      .eq('id', profile.id);
-    setSaving(false);
-  };
+      .eq('id', profile.id)
 
-  const onWalletConnected = async (acc: string) => {
-    // External wallet connected; save immediately and hide Hedera creator.
-    setWalletAddress(acc);
-    setShowHederaCreator(false);
-    if (profile) {
-      await supabase
-        .from('profiles')
-        .update({ wallet_address: acc })
-        .eq('id', profile.id);
+    if (error) {
+      console.error('Error updating profile:', error)
+    } else {
+      console.log('Profile updated successfully')
     }
-  };
-
-  const onWalletVerified = async (acc: string, signatureHex: string) => {
-    if (!profile) return;
-    setSaving(true);
-    await supabase
-      .from('profiles')
-      .update({ wallet_address: acc })
-      .eq('id', profile.id);
-    setSaving(false);
-  };
-
-  const onHederaAccountCreated = async (accountId: string, evmAddress: string) => {
-    setWalletAddress(accountId);
-    setShowHederaCreator(false);
-    // Refresh profile data
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session) {
-      const { data } = await supabase
-        .from('profiles')
-        .select('id,email,full_name,avatar_url,provider,wallet_address,hedera_evm_address,hedera_private_key,hedera_public_key,kyc_status,kyc_verified_at')
-        .eq('id', session.user.id)
-        .single();
-      if (data) {
-        setProfile(data as ProfileRow);
-      }
-    }
-  };
+  }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading profile...</p>
+        </div>
       </div>
-    );
+    )
   }
 
-  if (!profile) {
+  if (!session) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-gray-300">Unable to load profile. Please try refreshing.</div>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-800 mb-4">Please sign in to view your profile</h1>
+          <p className="text-gray-600">You need to be authenticated to access this page.</p>
+        </div>
       </div>
-    );
+    )
   }
-
-  const verified = profile.kyc_status === 'verified';
-  const hasExternalWallet = Boolean(walletAddress && walletAddress.startsWith('0x'));
-  const hasHederaAccount = Boolean(profile.hedera_evm_address || (profile.wallet_address && profile.wallet_address.startsWith('0.')));
 
   return (
-    <div className="min-h-screen bg-black particles">
-      <nav className="fixed w-full bg-black/80 backdrop-blur-xl border-b border-white/10 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <Link href="/" className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-lg flex items-center justify-center animate-glow">
-                <span className="text-white font-bold text-sm">H</span>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-4xl mx-auto">
+        <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-8 py-12">
+            <div className="flex items-center space-x-6">
+              <UserAvatar 
+                src={avatarUrl} 
+                alt={fullName || 'User'} 
+                size="xl"
+                className="ring-4 ring-white/20"
+              />
+              <div className="flex-1">
+                <div className="flex items-center space-x-3 mb-2">
+                  <h1 className="text-3xl font-bold text-white">
+                    {fullName || 'Your Profile'}
+                  </h1>
+                  {profile?.kyc_status === 'verified' && <VerifiedBadge />}
+                </div>
+                <p className="text-indigo-100 text-lg">{profile?.email}</p>
+                {profile?.role && (
+                  <span className="inline-block bg-white/20 text-white px-3 py-1 rounded-full text-sm font-medium mt-2">
+                    {profile.role}
+                  </span>
+                )}
               </div>
-              <span className="text-xl font-bold text-white">Homebaise</span>
-            </Link>
-            <div className="flex items-center space-x-4">
-              <Link href="/dashboard" className="text-gray-300 hover:text-white">Dashboard</Link>
             </div>
           </div>
-        </div>
-      </nav>
 
-      <div className="pt-24 pb-12">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-          <ScrollAnimations animationType="fade-in-up">
-            <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-8 border border-white/10">
-              <div className="flex items-center mb-8">
-                <div className="w-16 h-16 rounded-2xl bg-white/10 flex items-center justify-center text-2xl mr-4">
-                  {avatarUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={avatarUrl} alt="avatar" className="w-16 h-16 rounded-2xl object-cover" />
-                  ) : (
-                    <span>👤</span>
-                  )}
-                </div>
-                <div className="flex items-center space-x-2">
-                  <h1 className="text-2xl font-bold text-white">Profile</h1>
-                  {verified && <VerifiedBadge />}
-                </div>
-              </div>
-
+          {/* Content */}
+          <div className="p-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Profile Information */}
               <div className="space-y-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Full name</label>
-                  <input
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-300"
-                    placeholder="Enter your full name"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Avatar URL</label>
-                  <input
-                    value={avatarUrl}
-                    onChange={(e) => setAvatarUrl(e.target.value)}
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-300"
-                    placeholder="https://..."
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Email</label>
-                  <input value={profile.email || ''} disabled className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white" />
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="block text-sm font-medium text-gray-300">Wallet address</label>
-                    <WalletConnect onConnected={onWalletConnected} onVerified={onWalletVerified} />
+                  <h2 className="text-xl font-semibold text-gray-900 mb-4">Profile Information</h2>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Full Name
+                      </label>
+                      <input
+                        type="text"
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        placeholder="Enter your full name"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Avatar URL
+                      </label>
+                      <input
+                        type="url"
+                        value={avatarUrl}
+                        onChange={(e) => setAvatarUrl(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        placeholder="Enter avatar URL"
+                      />
+                    </div>
+                    <button
+                      onClick={saveProfile}
+                      className="w-full bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors"
+                    >
+                      Save Changes
+                    </button>
                   </div>
-                  <input
-                    value={walletAddress}
-                    onChange={(e) => setWalletAddress(e.target.value)}
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-300"
-                    placeholder="0.0.xxxxx"
-                  />
                 </div>
 
-                {/* Hedera Account Creation Section */}
-                <div className="pt-2">
-                  <div className="flex items-center justify-between mb-3">
-                    <label className="block text-sm font-medium text-gray-300">Or create a Hedera Account</label>
-                    {!hasExternalWallet && !hasHederaAccount && !showHederaCreator && (
-                      <button
-                        onClick={() => setShowHederaCreator(true)}
-                        className="px-3 py-2 rounded-lg text-sm bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 transition-colors"
-                      >
-                        Create Hedera Account
-                      </button>
+                {/* KYC Status */}
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900 mb-4">Identity Verification</h2>
+                  <KYCStatus status={profile?.kyc_status || 'unverified'} />
+                  {profile?.kyc_status !== 'verified' && <KYCVerification />}
+                </div>
+              </div>
+
+              {/* Wallet & Hedera */}
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900 mb-4">Wallet & Blockchain</h2>
+                  <div className="space-y-4">
+                    <WalletConnect 
+                      onWalletConnected={(address) => setWalletAddress(address)}
+                      currentAddress={walletAddress}
+                    />
+                    
+                    {!profile?.hedera_account_id && !walletAddress && (
+                      <HederaAccountCreator />
+                    )}
+                    
+                    {profile?.hedera_account_id && (
+                      <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                        <h3 className="font-medium text-gray-900">Hedera Account</h3>
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-gray-600">Account ID:</span>
+                            <div className="flex items-center space-x-2">
+                              <code className="text-sm bg-white px-2 py-1 rounded border">
+                                {profile.hedera_account_id}
+                              </code>
+                              <button
+                                onClick={() => navigator.clipboard.writeText(profile.hedera_account_id!)}
+                                className="text-indigo-600 hover:text-indigo-800 text-sm"
+                              >
+                                Copy
+                              </button>
+                            </div>
+                          </div>
+                          {profile.hedera_evm_address && (
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm text-gray-600">EVM Address:</span>
+                              <div className="flex items-center space-x-2">
+                                <code className="text-sm bg-white px-2 py-1 rounded border">
+                                  {profile.hedera_evm_address}
+                                </code>
+                                <button
+                                  onClick={() => navigator.clipboard.writeText(profile.hedera_evm_address!)}
+                                  className="text-indigo-600 hover:text-indigo-800 text-sm"
+                                >
+                                  Copy
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     )}
                   </div>
-
-                  {/* Show existing Hedera details if available */}
-                  {!showHederaCreator && (profile.hedera_evm_address || hasHederaAccount) && (
-                    <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-3">
-                      {hasHederaAccount && (
-                        <div>
-                          <div className="text-xs text-gray-400">Hedera Account ID</div>
-                          <div className="flex items-center space-x-2">
-                            <code className="flex-1 px-3 py-2 bg-black/20 border border-white/10 rounded-lg text-emerald-400 font-mono text-sm break-all">
-                              {profile.wallet_address}
-                            </code>
-                            <button
-                              onClick={() => {
-                                navigator.clipboard.writeText(profile.wallet_address || '');
-                                // Show a temporary notification
-                                const notification = document.createElement('div');
-                                notification.textContent = 'Hedera Account ID copied!';
-                                notification.className = 'fixed top-4 right-4 bg-emerald-500 text-white px-4 py-2 rounded-lg z-50 transition-opacity duration-300';
-                                document.body.appendChild(notification);
-                                
-                                setTimeout(() => {
-                                  notification.style.opacity = '0';
-                                  setTimeout(() => document.body.removeChild(notification), 300);
-                                }, 2000);
-                              }}
-                              className="px-3 py-2 bg-emerald-500/20 border border-emerald-500/30 rounded-lg text-emerald-400 hover:bg-emerald-500/30 transition-colors"
-                            >
-                              Copy
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                      {profile.hedera_evm_address && (
-                        <div>
-                          <div className="text-xs text-gray-400">EVM Address</div>
-                          <div className="flex items-center space-x-2">
-                            <code className="flex-1 px-3 py-2 bg-black/20 border border-white/10 rounded-lg text-emerald-400 font-mono text-sm break-all">
-                              {profile.hedera_evm_address}
-                            </code>
-                            <button
-                              onClick={() => {
-                                navigator.clipboard.writeText(profile.hedera_evm_address || '');
-                                // Show a temporary notification
-                                const notification = document.createElement('div');
-                                notification.textContent = 'EVM Address copied!';
-                                notification.className = 'fixed top-4 right-4 bg-emerald-500 text-white px-4 py-2 rounded-lg z-50 transition-opacity duration-300';
-                                document.body.appendChild(notification);
-                                
-                                setTimeout(() => {
-                                  notification.style.opacity = '0';
-                                  setTimeout(() => document.body.removeChild(notification), 300);
-                                }, 2000);
-                              }}
-                              className="px-3 py-2 bg-emerald-500/20 border border-emerald-500/30 rounded-lg text-emerald-400 hover:bg-emerald-500/30 transition-colors"
-                            >
-                              Copy
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {showHederaCreator && !hasExternalWallet && (
-                    <HederaAccountCreator
-                      onAccountCreated={onHederaAccountCreated}
-                      className="mt-2"
-                    />
-                  )}
-
-                  {hasExternalWallet && (
-                    <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3 text-sm text-yellow-300">
-                      External wallet connected. Hedera account creation is not required.
-                    </div>
-                  )}
                 </div>
 
+                {/* Account Details */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">KYC status</label>
-                  <KYCStatus status={profile.kyc_status} />
+                  <h2 className="text-xl font-semibold text-gray-900 mb-4">Account Details</h2>
+                  <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Provider:</span>
+                      <span className="text-sm font-medium text-gray-900 capitalize">
+                        {profile?.provider || 'email'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Member Since:</span>
+                      <span className="text-sm font-medium text-gray-900">
+                        {profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : 'N/A'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Last Updated:</span>
+                      <span className="text-sm font-medium text-gray-900">
+                        {profile?.updated_at ? new Date(profile.updated_at).toLocaleDateString() : 'N/A'}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-
-                <KYCVerification 
-                  userId={profile.id}
-                  currentStatus={profile.kyc_status}
-                  onStatusChange={updateProfileStatus}
-                />
-
-                <MagneticEffect>
-                  <button
-                    onClick={saveProfile}
-                    disabled={saving}
-                    className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white py-3 px-4 rounded-xl font-medium hover:shadow-lg hover:shadow-emerald-500/25 transition-all duration-300 hover-lift disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {saving ? 'Saving...' : 'Save changes'}
-                  </button>
-                </MagneticEffect>
               </div>
             </div>
-          </ScrollAnimations>
-
-          <div className="mt-8 text-center">
-            <Link href="/dashboard" className="text-gray-400 hover:text-white">← Back to Dashboard</Link>
           </div>
         </div>
       </div>
     </div>
-  );
+  )
 }

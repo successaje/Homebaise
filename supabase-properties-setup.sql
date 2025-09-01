@@ -45,6 +45,23 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'properties' AND column_name = 'rejection_reason') THEN
         ALTER TABLE properties ADD COLUMN rejection_reason TEXT;
     END IF;
+    
+    -- Add certificate-related columns if they don't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'properties' AND column_name = 'certificate_token_id') THEN
+        ALTER TABLE properties ADD COLUMN certificate_token_id TEXT;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'properties' AND column_name = 'certificate_number') THEN
+        ALTER TABLE properties ADD COLUMN certificate_number TEXT;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'properties' AND column_name = 'certificate_metadata_url') THEN
+        ALTER TABLE properties ADD COLUMN certificate_metadata_url TEXT;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'properties' AND column_name = 'certificate_issued_at') THEN
+        ALTER TABLE properties ADD COLUMN certificate_issued_at TIMESTAMP WITH TIME ZONE;
+    END IF;
 END $$ LANGUAGE plpgsql;
 
 -- Update existing columns to match new structure
@@ -67,7 +84,7 @@ BEGIN
     
     -- Add new constraint
     ALTER TABLE properties ADD CONSTRAINT properties_status_check 
-        CHECK (status IN ('draft', 'pending', 'pending_review', 'active', 'funded', 'completed', 'cancelled', 'approved', 'rejected'));
+        CHECK (status IN ('draft', 'pending', 'pending_review', 'active', 'funded', 'completed', 'cancelled', 'approved', 'rejected', 'certified'));
 EXCEPTION
     WHEN duplicate_object THEN
         -- Constraint already exists with correct values, do nothing

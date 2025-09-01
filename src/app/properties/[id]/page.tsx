@@ -6,7 +6,10 @@ import { getPropertyById, Property } from '@/data/mockProperties';
 import { formatNumber, formatCurrency, formatDate, getPropertyTypeLabel, getCountryFlag } from '@/lib/utils';
 import MagneticEffect from '@/components/MagneticEffect';
 import ScrollAnimations from '@/components/ScrollAnimations';
+import PropertyCertificate from '@/components/PropertyCertificate';
 import Link from 'next/link';
+import { createClient } from '@supabase/supabase-js';
+import { toast } from 'react-hot-toast';
 
 export default function PropertyDetailPage() {
   const params = useParams();
@@ -14,6 +17,13 @@ export default function PropertyDetailPage() {
   const [property, setProperty] = useState<Property | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState(0);
+  const [certificateData, setCertificateData] = useState<{
+    tokenId: string;
+    certificateNumber: string;
+    metadataUrl: string;
+  } | null>(null);
+  const [isGeneratingCertificate, setIsGeneratingCertificate] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
     if (params.id) {
@@ -26,6 +36,27 @@ export default function PropertyDetailPage() {
       setLoading(false);
     }
   }, [params.id, router]);
+
+  // Check authentication status
+  useEffect(() => {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+
+    const checkAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setIsAuthenticated(!!user);
+    };
+
+    checkAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setIsAuthenticated(!!session?.user);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   if (loading) {
     return (
@@ -68,6 +99,45 @@ export default function PropertyDetailPage() {
         return 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20';
       default:
         return 'bg-gray-500/10 text-gray-400 border-gray-500/20';
+    }
+  };
+
+  const handleGenerateCertificate = async (verificationData: {
+    kycVerified: boolean;
+    legalDocsValidated: boolean;
+    ownershipConfirmed: boolean;
+    tokenized: boolean;
+  }) => {
+    setIsGeneratingCertificate(true);
+    try {
+      const response = await fetch('/api/generate-certificate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          propertyId: property?.id,
+          verificationData
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}: Failed to generate certificate`);
+      }
+
+      const result = await response.json();
+      setCertificateData(result.certificate);
+    } catch (error) {
+      console.error('Error generating certificate:', error);
+      if (error instanceof Error && error.message.includes('Unauthorized')) {
+        // Handle authentication error specifically
+        toast.error('Please log in to generate certificates');
+      } else {
+        throw error;
+      }
+    } finally {
+      setIsGeneratingCertificate(false);
     }
   };
 
@@ -353,6 +423,32 @@ export default function PropertyDetailPage() {
                       <span className="text-white text-sm">{formatDate(property.closingDate)}</span>
                     </div>
                   </div>
+                </div>
+
+                {/* Property Certificate */}
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+                  <h3 className="text-lg font-bold text-white mb-4">Verification Certificate</h3>
+                  {!isAuthenticated ? (
+                    <div className="text-center py-8">
+                      <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                      </div>
+                      <h3 className="text-lg font-semibold text-white mb-2">Authentication Required</h3>
+                      <p className="text-gray-400 mb-4">Please log in to generate property certificates.</p>
+                      <Link href="/auth" className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                        Log In
+                      </Link>
+                    </div>
+                  ) : (
+                    <PropertyCertificate
+                      propertyId={property.id}
+                      certificateData={certificateData}
+                      onGenerateCertificate={handleGenerateCertificate}
+                      isGenerating={isGeneratingCertificate}
+                    />
+                  )}
                 </div>
               </div>
             </div>

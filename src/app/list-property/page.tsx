@@ -6,6 +6,7 @@ import Link from 'next/link';
 import MagneticEffect from '@/components/MagneticEffect';
 import ScrollAnimations from '@/components/ScrollAnimations';
 import { supabase } from '@/lib/supabase';
+import { getCurrentUserProfile, isUserVerified } from '@/lib/profile';
 
 interface PropertyForm {
   title: string;
@@ -21,6 +22,17 @@ interface PropertyForm {
   yieldRate: string;
   images: File[];
   documents: File[];
+  // New fields
+  investmentHighlights: string[];
+  propertyFeatures: string[];
+  amenities: string[];
+  investmentRisks: string[];
+  propertySize: string;
+  legalStatus: string;
+  occupancyRate: number;
+  annualRentalIncome: number;
+  appreciationRate: number;
+  propertyManager: string;
 }
 
 export default function ListPropertyPage() {
@@ -43,7 +55,18 @@ export default function ListPropertyPage() {
     maxInvestment: 0,
     yieldRate: '',
     images: [],
-    documents: []
+    documents: [],
+    // New fields
+    investmentHighlights: [],
+    propertyFeatures: [],
+    amenities: [],
+    investmentRisks: [],
+    propertySize: '',
+    legalStatus: '',
+    occupancyRate: 0,
+    annualRentalIncome: 0,
+    appreciationRate: 0,
+    propertyManager: ''
   });
 
 
@@ -54,17 +77,27 @@ export default function ListPropertyPage() {
 
   const checkUser = async () => {
     try {
+      console.log('checkUser - Starting user check');
       const { data: { user } } = await supabase.auth.getUser();
+      console.log('checkUser - Auth result:', { user: user?.id, email: user?.email });
+      
       if (user) {
         setUser(user);
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('kyc_status')
-          .eq('id', user.id)
-          .single();
         
-        setIsVerified(profile?.kyc_status === 'verified');
+        // Use the utility function to get profile
+        console.log('checkUser - Getting user profile...');
+        const profile = await getCurrentUserProfile();
+        console.log('checkUser - Profile result:', profile);
+        
+        if (profile) {
+          console.log('checkUser - Setting verified status:', profile.kyc_status === 'verified');
+          setIsVerified(profile.kyc_status === 'verified');
+        } else {
+          console.error('Failed to get user profile');
+          router.push('/auth');
+        }
       } else {
+        console.log('checkUser - No user found, redirecting to auth');
         router.push('/auth');
       }
     } catch (error) {
@@ -77,6 +110,22 @@ export default function ListPropertyPage() {
 
   const handleInputChange = (field: string, value: any) => {
     setForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleArrayFieldChange = (field: 'investmentHighlights' | 'propertyFeatures' | 'amenities' | 'investmentRisks', value: string) => {
+    if (value.trim()) {
+      setForm(prev => ({ 
+        ...prev, 
+        [field]: [...prev[field], value.trim()]
+      }));
+    }
+  };
+
+  const removeArrayItem = (field: 'investmentHighlights' | 'propertyFeatures' | 'amenities' | 'investmentRisks', index: number) => {
+    setForm(prev => ({
+      ...prev,
+      [field]: prev[field].filter((_, i) => i !== index)
+    }));
   };
 
   const handleFileUpload = (field: 'images' | 'documents', files: FileList | null) => {
@@ -125,6 +174,11 @@ export default function ListPropertyPage() {
       return;
     }
 
+    if (form.images.length < 5) {
+      alert('Minimum of 5 images are required for property listing.');
+      return;
+    }
+
     setIsSubmitting(true);
     setUploadProgress(0);
 
@@ -167,7 +221,18 @@ export default function ListPropertyPage() {
           ipfs_image_cids: imageCids,
           ipfs_document_cids: documentCids,
           listed_by: user.id,
-          status: 'pending_review'
+          status: 'pending_review',
+          // New fields
+          investment_highlights: form.investmentHighlights,
+          property_features: form.propertyFeatures,
+          amenities: form.amenities,
+          investment_risks: form.investmentRisks,
+          property_size: form.propertySize,
+          legal_status: form.legalStatus,
+          occupancy_rate: form.occupancyRate,
+          annual_rental_income: form.annualRentalIncome,
+          appreciation_rate: form.appreciationRate,
+          property_manager: form.propertyManager
         });
 
       if (error) {
@@ -258,6 +323,8 @@ export default function ListPropertyPage() {
                 Tokenize your real estate asset and make it available for global investment
               </p>
             </div>
+
+
 
             {/* Upload Progress */}
             {isSubmitting && (
@@ -405,13 +472,293 @@ export default function ListPropertyPage() {
                 </div>
               </div>
 
+              {/* Notice Section */}
+              <div className="mt-8 p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+                <div className="flex items-start space-x-3">
+                  <div className="text-blue-400 text-xl">💡</div>
+                  <div>
+                    <h4 className="text-blue-400 font-semibold mb-2">Important Notice</h4>
+                    <p className="text-gray-300 text-sm">
+                      The more information you provide, the better your chances of getting invested in. 
+                      Comprehensive property details help investors make informed decisions and increase 
+                      the likelihood of successful funding.
+                    </p>
+                    <p className="text-gray-300 text-sm mt-2">
+                      <strong>Minimum requirement:</strong> At least 5 high-quality property images are required.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Investment Highlights */}
+              <div className="mt-8">
+                <h3 className="text-lg font-semibold text-white mb-4">Investment Highlights</h3>
+                <div className="space-y-4">
+                  <div className="flex space-x-2">
+                    <input
+                      type="text"
+                      placeholder="Add investment highlight (e.g., Prime location, High rental demand)"
+                      className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleArrayFieldChange('investmentHighlights', e.currentTarget.value);
+                          e.currentTarget.value = '';
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={(e) => {
+                        const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                        handleArrayFieldChange('investmentHighlights', input.value);
+                        input.value = '';
+                      }}
+                      className="px-4 py-3 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-colors"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  {form.investmentHighlights.length > 0 && (
+                    <div className="space-y-2">
+                      {form.investmentHighlights.map((highlight, index) => (
+                        <div key={index} className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
+                          <span className="text-white">• {highlight}</span>
+                          <button
+                            onClick={() => removeArrayItem('investmentHighlights', index)}
+                            className="text-red-400 hover:text-red-300"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Property Features */}
+              <div className="mt-8">
+                <h3 className="text-lg font-semibold text-white mb-4">Property Features</h3>
+                <div className="space-y-4">
+                  <div className="flex space-x-2">
+                    <input
+                      type="text"
+                      placeholder="Add property feature (e.g., Modern kitchen, Balcony, Parking)"
+                      className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleArrayFieldChange('propertyFeatures', e.currentTarget.value);
+                          e.currentTarget.value = '';
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={(e) => {
+                        const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                        handleArrayFieldChange('propertyFeatures', input.value);
+                        input.value = '';
+                      }}
+                      className="px-4 py-3 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-colors"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  {form.propertyFeatures.length > 0 && (
+                    <div className="space-y-2">
+                      {form.propertyFeatures.map((feature, index) => (
+                        <div key={index} className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
+                          <span className="text-white">• {feature}</span>
+                          <button
+                            onClick={() => removeArrayItem('propertyFeatures', index)}
+                            className="text-red-400 hover:text-red-300"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Amenities */}
+              <div className="mt-8">
+                <h3 className="text-lg font-semibold text-white mb-4">Amenities</h3>
+                <div className="space-y-4">
+                  <div className="flex space-x-2">
+                    <input
+                      type="text"
+                      placeholder="Add amenity (e.g., Swimming pool, Gym, Security)"
+                      className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleArrayFieldChange('amenities', e.currentTarget.value);
+                          e.currentTarget.value = '';
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={(e) => {
+                        const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                        handleArrayFieldChange('amenities', input.value);
+                        input.value = '';
+                      }}
+                      className="px-4 py-3 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-colors"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  {form.amenities.length > 0 && (
+                    <div className="space-y-2">
+                      {form.amenities.map((amenity, index) => (
+                        <div key={index} className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
+                          <span className="text-white">• {amenity}</span>
+                          <button
+                            onClick={() => removeArrayItem('amenities', index)}
+                            className="text-red-400 hover:text-red-300"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Investment Risks */}
+              <div className="mt-8">
+                <h3 className="text-lg font-semibold text-white mb-4">Investment Risks</h3>
+                <div className="space-y-4">
+                  <div className="flex space-x-2">
+                    <input
+                      type="text"
+                      placeholder="Add investment risk (e.g., Market volatility, Regulatory changes)"
+                      className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleArrayFieldChange('investmentRisks', e.currentTarget.value);
+                          e.currentTarget.value = '';
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={(e) => {
+                        const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                        handleArrayFieldChange('investmentRisks', input.value);
+                        input.value = '';
+                      }}
+                      className="px-4 py-3 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-colors"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  {form.investmentRisks.length > 0 && (
+                    <div className="space-y-2">
+                      {form.investmentRisks.map((risk, index) => (
+                        <div key={index} className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
+                          <span className="text-white">• {risk}</span>
+                          <button
+                            onClick={() => removeArrayItem('investmentRisks', index)}
+                            className="text-red-400 hover:text-red-300"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Property Details */}
+              <div className="mt-8">
+                <h3 className="text-lg font-semibold text-white mb-4">Property Details</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-white font-medium mb-2">Property Size</label>
+                    <input
+                      type="text"
+                      value={form.propertySize}
+                      onChange={(e) => handleInputChange('propertySize', e.target.value)}
+                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      placeholder="e.g., 2,500 sq ft"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-white font-medium mb-2">Legal Status</label>
+                    <input
+                      type="text"
+                      value={form.legalStatus}
+                      onChange={(e) => handleInputChange('legalStatus', e.target.value)}
+                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      placeholder="e.g., Freehold, Leasehold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-white font-medium mb-2">Occupancy Rate (%)</label>
+                    <input
+                      type="number"
+                      value={form.occupancyRate}
+                      onChange={(e) => handleInputChange('occupancyRate', parseFloat(e.target.value) || 0)}
+                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      placeholder="e.g., 85"
+                      min="0"
+                      max="100"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-white font-medium mb-2">Annual Rental Income</label>
+                    <input
+                      type="number"
+                      value={form.annualRentalIncome}
+                      onChange={(e) => handleInputChange('annualRentalIncome', parseFloat(e.target.value) || 0)}
+                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      placeholder="e.g., 50000"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-white font-medium mb-2">Appreciation Rate (%)</label>
+                    <input
+                      type="number"
+                      value={form.appreciationRate}
+                      onChange={(e) => handleInputChange('appreciationRate', parseFloat(e.target.value) || 0)}
+                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      placeholder="e.g., 5.5"
+                      step="0.1"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-white font-medium mb-2">Property Manager</label>
+                    <input
+                      type="text"
+                      value={form.propertyManager}
+                      onChange={(e) => handleInputChange('propertyManager', e.target.value)}
+                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      placeholder="e.g., ABC Property Management"
+                    />
+                  </div>
+                </div>
+              </div>
+
               {/* File Upload Section */}
               <div className="mt-8">
                 <h3 className="text-lg font-semibold text-white mb-4">Property Images & Documents</h3>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-white font-medium mb-2">Property Images</label>
+                    <label className="block text-white font-medium mb-2">
+                      Property Images <span className="text-red-400">*</span>
+                      <span className="text-gray-400 text-sm ml-2">(Minimum 5 required)</span>
+                    </label>
                     <div className="border-2 border-dashed border-white/20 rounded-xl p-6 text-center">
                       <input
                         type="file"
@@ -425,6 +772,7 @@ export default function ListPropertyPage() {
                         <div className="text-4xl mb-2">📸</div>
                         <div className="text-gray-400">Click to upload images</div>
                         <div className="text-gray-500 text-sm">PNG, JPG up to 10MB each</div>
+                        <div className="text-red-400 text-sm mt-1">Minimum 5 images required</div>
                       </label>
                     </div>
                     
