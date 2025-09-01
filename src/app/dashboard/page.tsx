@@ -10,6 +10,7 @@ import VerifiedBadge from '@/components/VerifiedBadge'
 import KYCStatus from '@/components/KYCStatus'
 import UserAvatar from '@/components/UserAvatar'
 import UserCertificates from '@/components/UserCertificates'
+import UserProperties from '@/components/UserProperties'
 import { useRouter } from 'next/navigation'
 
 const supabase = createClient(
@@ -263,6 +264,13 @@ export default function DashboardPage() {
             {/* Certificates Section */}
             <div className="mt-8">
               <UserCertificates />
+            </div>
+
+            {/* My Properties Section */}
+            <div className="mt-8">
+              <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-6 border border-white/10">
+                <UserProperties />
+              </div>
             </div>
 
             {/* Recent Activity */}

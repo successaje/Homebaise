@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "react-hot-toast";
+import SupabaseProvider from "@/components/SupabaseProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,7 +30,9 @@ export default function RootLayout({
         suppressHydrationWarning
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        <SupabaseProvider>
+          {children}
+        </SupabaseProvider>
         <Toaster 
           position="top-right"
           toastOptions={{
@@ -48,9 +51,9 @@ export default function RootLayout({
             },
             error: {
               style: {
-                background: '#7F1D1D',
-                color: '#F9FAFB',
-                border: '1px solid #EF4444',
+              background: '#7F1D1D',
+              color: '#F9FAFB',
+              border: '1px solid #EF4444',
               },
             },
           }}

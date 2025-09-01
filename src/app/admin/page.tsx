@@ -187,6 +187,60 @@ export default function AdminPage() {
     setSelectedProperty(null);
   };
 
+  const updatePropertyStatus = async (
+    propertyId: string,
+    newStatus: AdminProperty['status'],
+    rejectionReason?: string
+  ) => {
+    try {
+      const updateData: any = {
+        status: newStatus,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (['active', 'funded', 'completed'].includes(newStatus)) {
+        updateData.approved_at = new Date().toISOString();
+        updateData.approved_by = user?.id || null;
+        updateData.rejection_reason = null;
+      }
+
+      if (newStatus === 'cancelled' || newStatus === 'rejected') {
+        updateData.rejection_reason = rejectionReason || 'Updated by admin';
+      }
+
+      const { error } = await supabase
+        .from('properties')
+        .update(updateData)
+        .eq('id', propertyId);
+
+      if (error) {
+        console.error('Error updating property status:', error);
+        const notification = document.createElement('div');
+        notification.textContent = 'Failed to update property status';
+        notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg z-50 transition-opacity duration-300';
+        document.body.appendChild(notification);
+        setTimeout(() => {
+          notification.style.opacity = '0';
+          setTimeout(() => document.body.removeChild(notification), 300);
+        }, 3000);
+        return;
+      }
+
+      const notification = document.createElement('div');
+      notification.textContent = 'Property status updated successfully';
+      notification.className = 'fixed top-4 right-4 bg-emerald-500 text-white px-4 py-2 rounded-lg z-50 transition-opacity duration-300';
+      document.body.appendChild(notification);
+      setTimeout(() => {
+        notification.style.opacity = '0';
+        setTimeout(() => document.body.removeChild(notification), 300);
+      }, 3000);
+
+      fetchProperties();
+    } catch (e) {
+      console.error('Error updating property status:', e);
+    }
+  };
+
   const deleteProperty = async (propertyId: string) => {
     if (!confirm('Are you sure you want to delete this property? This action cannot be undone.')) {
       return;
@@ -476,9 +530,9 @@ export default function AdminPage() {
                     <p className="text-gray-400">No properties have been added yet.</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {properties.map((property) => (
-                      <div key={property.id} className="bg-white/5 border border-white/10 rounded-xl p-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {properties.map((property) => (
+                    <div key={property.id} className="bg-white/5 border border-white/10 rounded-xl p-4">
                         {/* Property Image */}
                         {(property.images && property.images.length > 0) || (property.ipfs_image_cids && property.ipfs_image_cids.length > 0) ? (
                           <div className="mb-3">
@@ -491,7 +545,7 @@ export default function AdminPage() {
                           </div>
                         ) : null}
                         
-                        <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center justify-between mb-3">
                           <h4 className="text-white font-semibold text-sm">{property.name || property.title}</h4>
                           <PropertyStatusBadge 
                             status={property.status} 
@@ -499,8 +553,8 @@ export default function AdminPage() {
                             hasCertificate={property.status === 'active'}
                             size="sm"
                           />
-                        </div>
-                        
+                      </div>
+                      
                         <div className="space-y-2 text-sm mb-4">
                           <div className="flex justify-between">
                             <span className="text-gray-400">Location</span>
@@ -510,16 +564,16 @@ export default function AdminPage() {
                             <span className="text-gray-400">Type</span>
                             <span className="text-white capitalize">{property.property_type}</span>
                           </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Value</span>
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">Value</span>
                             <span className="text-white">{formatCurrency(property.total_value)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Funded</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">Funded</span>
                             <span className="text-white">{property.funded_percent}%</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Yield</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">Yield</span>
                             <span className="text-emerald-400">{property.yield_rate}</span>
                           </div>
                         </div>
@@ -537,7 +591,7 @@ export default function AdminPage() {
                             </div>
                           )}
                           
-                          {property.status === 'pending' && (
+                          {(property.status === 'pending' || property.status === 'pending_review') && (
                             <div className="flex space-x-2">
                               <button 
                                 onClick={() => handlePropertyApproval(property)}
@@ -580,15 +634,20 @@ export default function AdminPage() {
                         {/* General Actions */}
                         <div className="mt-3 flex space-x-2">
                           <button className="text-emerald-400 hover:text-emerald-300 text-xs">Edit</button>
-                          <button className="text-blue-400 hover:text-blue-300 text-xs">View</button>
+                          <button 
+                            onClick={() => handlePropertyApproval(property)}
+                            className="text-blue-400 hover:text-blue-300 text-xs"
+                          >
+                            View
+                          </button>
                           <button 
                             onClick={() => deleteProperty(property.id)}
                             className="text-red-400 hover:text-red-300 text-xs"
                           >
                             Delete
                           </button>
-                        </div>
-                        
+                      </div>
+                      
                         {/* Property Details */}
                         <div className="mt-3 text-xs text-gray-400">
                           <div>Created: {new Date(property.created_at).toLocaleDateString()}</div>
@@ -599,9 +658,9 @@ export default function AdminPage() {
                             <div className="text-red-400">Rejected: {property.rejection_reason}</div>
                           )}
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
+                </div>
                 )}
               </div>
             )}

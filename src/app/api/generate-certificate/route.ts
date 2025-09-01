@@ -20,18 +20,21 @@ export async function POST(request: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
-          getAll() {
-            return cookieStore.getAll();
+          get(name: string) {
+            return cookieStore.get(name)?.value;
           },
-          setAll(cookiesToSet) {
+          set(name: string, value: string, options: any) {
             try {
-              cookiesToSet.forEach(({ name, value, options }) =>
-                cookieStore.set(name, value, options)
-              );
+              cookieStore.set(name, value, options);
             } catch {
-              // The `setAll` method was called from a Server Component.
-              // This can be ignored if you have middleware refreshing
-              // user sessions.
+              // The `set` method was called from a Server Component.
+            }
+          },
+          remove(name: string, options: any) {
+            try {
+              cookieStore.set(name, '', options);
+            } catch {
+              // The `remove` method was called from a Server Component.
             }
           },
         },
@@ -48,11 +51,11 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { propertyId, verificationData } = body;
+    const { propertyId, approvalNotes } = body;
 
-    if (!propertyId || !verificationData) {
+    if (!propertyId) {
       return NextResponse.json({ 
-        error: 'propertyId and verificationData are required' 
+        error: 'propertyId is required' 
       }, { status: 400 });
     }
 
@@ -80,17 +83,42 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate certificate
+    const verificationData = {
+      approvedBy: user.id,
+      approvalDate: new Date().toISOString(),
+      notes: approvalNotes || 'Property approved by admin'
+    };
     const certificate = await generatePropertyCertificate(property, verificationData);
 
-    // Update property with certificate info
+    // Create certificate record
+    const { data: certificateRecord, error: certError } = await supabase
+      .from('property_certificates')
+      .insert({
+        property_id: propertyId,
+        property_name: property.name,
+        certificate_hash: certificate.certificateNumber,
+        nft_token_id: certificate.tokenId,
+        issued_by: user.id,
+        status: 'minted',
+        ipfs_metadata_url: certificate.metadataUrl,
+        approval_notes: approvalNotes
+      })
+      .select()
+      .single();
+
+    if (certError) {
+      console.error('Error creating certificate record:', certError);
+      return NextResponse.json({ 
+        error: 'Failed to create certificate record' 
+      }, { status: 500 });
+    }
+
+    // Update property with certificate reference
     const { error: updateError } = await supabase
       .from('properties')
       .update({
-        certificate_token_id: certificate.tokenId,
-        certificate_number: certificate.certificateNumber,
-        certificate_metadata_url: certificate.metadataUrl,
-        certificate_issued_at: new Date().toISOString(),
-        status: 'certified'
+        certificate_id: certificateRecord.id,
+        status: 'active'
       })
       .eq('id', propertyId);
 
@@ -106,6 +134,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       certificate: {
+        id: certificateRecord.id,
         tokenId: certificate.tokenId,
         certificateNumber: certificate.certificateNumber,
         metadataUrl: certificate.metadataUrl

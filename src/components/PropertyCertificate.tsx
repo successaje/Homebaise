@@ -37,7 +37,6 @@ interface PropertyCertificateProps {
   propertyId: string;
   certificateData?: CertificateData;
   onGenerateCertificate?: (verificationData: {
-    kycVerified: boolean;
     legalDocsValidated: boolean;
     ownershipConfirmed: boolean;
     tokenized: boolean;
@@ -54,7 +53,6 @@ export default function PropertyCertificate({
   const [loading, setLoading] = useState(false);
   const [showGenerateForm, setShowGenerateForm] = useState(false);
   const [verificationData, setVerificationData] = useState({
-    kycVerified: false,
     legalDocsValidated: false,
     ownershipConfirmed: false,
     tokenized: false
@@ -144,16 +142,6 @@ export default function PropertyCertificate({
         
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <label className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={verificationData.kycVerified}
-                onChange={(e) => setVerificationData(prev => ({ ...prev, kycVerified: e.target.checked }))}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-              />
-              <span className="text-sm font-medium text-gray-700">KYC Verified</span>
-            </label>
-            
             <label className="flex items-center space-x-2">
               <input
                 type="checkbox"
