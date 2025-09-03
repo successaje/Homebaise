@@ -280,6 +280,18 @@ export default function PropertyDetailPage() {
     }
   };
 
+  const isPropertyTokenized = () => {
+    return property?.token_price !== null && property?.min_investment !== null && property?.max_investment !== null;
+  };
+
+  const getTokenId = () => {
+    return property?.certificate_id || 'N/A';
+  };
+
+  const getHashScanUrl = () => {
+    return `https://hashscan.io/polygon/token/${getTokenId()}`;
+  };
+
   return (
     <div className="min-h-screen bg-black particles">
       {/* Navigation */}
@@ -329,6 +341,17 @@ export default function PropertyDetailPage() {
                   <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm border ${getStatusColor(property.status)}`}>
                     {getStatusLabel(property.status)}
                   </span>
+                  {(property?.status === 'tokenized' || property?.certificate_token_id) && (
+                    <a
+                      href={property?.certificate_token_id ? `https://hashscan.io/testnet/token/${property.certificate_token_id}` : '#'}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center px-3 py-1 rounded-full text-sm border bg-purple-500/10 text-purple-400 border-purple-500/20 hover:bg-purple-500/20 transition-colors"
+                      title={property?.certificate_token_id || 'View on HashScan'}
+                    >
+                      🪙 Tokenized ↗
+                    </a>
+                  )}
                 </div>
               </div>
             </div>
@@ -600,6 +623,86 @@ export default function PropertyDetailPage() {
                     </div>
                   </div>
                 </div>
+
+                {/* Token Information */}
+                {(property?.status === 'tokenized' || property?.certificate_token_id) && (
+                  <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+                    <h3 className="text-lg font-bold text-white mb-4">🪙 Token Information</h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Token ID</span>
+                        <span className="text-white font-mono text-sm truncate max-w-32" title={property?.certificate_token_id || 'N/A'}>
+                          {property?.certificate_token_id || 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">HashScan</span>
+                        <a
+                          href={property?.certificate_token_id ? `https://hashscan.io/testnet/token/${property.certificate_token_id}` : '#'}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-purple-400 hover:text-purple-300 text-sm underline"
+                        >
+                          View on HashScan ↗
+                        </a>
+                      </div>
+                      {property?.certificate_number && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-400">Certificate</span>
+                          <span className="text-white">{property.certificate_number}</span>
+                        </div>
+                      )}
+                      {property?.certificate_issued_at && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-400">Issued</span>
+                          <span className="text-white">{formatDate(property.certificate_issued_at)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Status</span>
+                        <span className="text-emerald-400">Active on Hedera</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Token Information */}
+                {isPropertyTokenized() && (
+                  <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+                    <h3 className="text-lg font-bold text-white mb-4">🪙 Token Information</h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Token ID</span>
+                        <span className="text-white font-mono text-sm truncate max-w-32" title={getTokenId()}>
+                          {getTokenId()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">HashScan</span>
+                        <a
+                          href={getHashScanUrl() || '#'}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-purple-400 hover:text-purple-300 text-sm underline"
+                        >
+                          View on HashScan ↗
+                        </a>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Token Price</span>
+                        <span className="text-white">{property.token_price ? formatCurrency(property.token_price) : 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Min Investment</span>
+                        <span className="text-white">{property.min_investment ? formatNumber(property.min_investment) : 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Max Investment</span>
+                        <span className="text-white">{property.max_investment ? formatNumber(property.max_investment) : 'N/A'}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Property Certificate */}
                 <div className="bg-white/5 border border-white/10 rounded-2xl p-6">

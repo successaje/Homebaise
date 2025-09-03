@@ -44,7 +44,7 @@ export interface MintedToken {
  */
 export async function createPropertyTreasuryAccount(
   client: Client,
-  initialBalance: Hbar = new Hbar(10)
+  initialBalance: Hbar = new Hbar(20)
 ): Promise<TreasuryAccount> {
   try {
     // Generate a new ECDSA key pair for the treasury account
@@ -53,13 +53,14 @@ export async function createPropertyTreasuryAccount(
 
     // Create the account with higher transaction fee
     const transaction = new AccountCreateTransaction()
-      .setKey(publicKey)
-      .setInitialBalance(initialBalance)
-      .setAccountMemo("Property Treasury Account");
+      .setECDSAKeyWithAlias(privateKey)
+      // .setKey(publicKey)
+      .setInitialBalance(new Hbar(20))
+      .setAccountMemo("A Property Treasury Account");
 
     // Sign and execute the transaction with higher fee
     const response = await transaction
-      .setMaxTransactionFee(new Hbar(5))
+      // .setMaxTransactionFee(new Hbar(20))
       .execute(client);
 
     // Get the receipt
@@ -87,12 +88,13 @@ export async function createPropertyTreasuryAccount(
  */
 export async function createPropertyToken(
   client: Client,
-  metadata: TokenMetadata
+  metadata: TokenMetadata,
+  treasuryPrivateKey: string
 ): Promise<MintedToken> {
   try {
     const treasuryAccountId = AccountId.fromString(metadata.treasuryAccountId);
 
-    // Create the token
+    // Build the transaction and set fee before freezing
     const transaction = new TokenCreateTransaction()
       .setTokenName(metadata.name)
       .setTokenSymbol(metadata.symbol)
@@ -101,14 +103,14 @@ export async function createPropertyToken(
       .setTreasuryAccountId(treasuryAccountId)
       .setSupplyType(TokenSupplyType.Finite)
       .setMaxSupply(metadata.maxSupply)
-      .setTokenType(TokenType.FungibleCommon);
+      .setTokenType(TokenType.FungibleCommon)
+      .setMaxTransactionFee(new Hbar(5));
 
-    // Sign and execute the transaction with higher fee
-    const response = await transaction
-      .setMaxTransactionFee(new Hbar(5))
-      .execute(client);
+    // Freeze then sign with treasury key, then execute
+    const frozen = await transaction.freezeWith(client);
+    const signedTx = await frozen.sign(PrivateKey.fromString(treasuryPrivateKey));
+    const response = await signedTx.execute(client);
 
-    // Get the receipt
     const receipt = await response.getReceipt(client);
     const tokenId = receipt.tokenId;
 
@@ -134,39 +136,37 @@ export async function createPropertyToken(
  */
 export async function createPropertyNFT(
   client: Client,
-  metadata: TokenMetadata
+  metadata: TokenMetadata,
+  treasuryPrivateKey: string
 ): Promise<MintedToken> {
   try {
-    // Check operator account balance first
     const operatorAccountId = client.operatorAccountId;
     if (!operatorAccountId) {
       throw new Error("Client not configured with operator account");
     }
-    
     const balance = await client.getAccountBalance(operatorAccountId);
     console.log(`Operator account balance before NFT creation: ${balance.hbars.toString()} HBAR`);
-    
     if (balance.hbars.toTinybars() < new Hbar(5).toTinybars()) {
       throw new Error(`Insufficient operator balance. Need at least 5 HBAR, have ${balance.hbars.toString()}`);
     }
 
     const treasuryAccountId = AccountId.fromString(metadata.treasuryAccountId);
 
-    // Create the NFT token
+    // Build the transaction and set fee before freezing
     const transaction = new TokenCreateTransaction()
       .setTokenName(metadata.name)
       .setTokenSymbol(metadata.symbol)
       .setTokenType(TokenType.NonFungibleUnique)
       .setTreasuryAccountId(treasuryAccountId)
       .setSupplyType(TokenSupplyType.Finite)
-      .setMaxSupply(metadata.maxSupply);
+      .setMaxSupply(metadata.maxSupply)
+      .setMaxTransactionFee(new Hbar(5));
 
-    // Sign and execute the transaction with higher fee
-    const response = await transaction
-      .setMaxTransactionFee(new Hbar(5))
-      .execute(client);
+    // Freeze then sign with treasury key, then execute
+    const frozen = await transaction.freezeWith(client);
+    const signedTx = await frozen.sign(PrivateKey.fromString(treasuryPrivateKey));
+    const response = await signedTx.execute(client);
 
-    // Get the receipt
     const receipt = await response.getReceipt(client);
     const tokenId = receipt.tokenId;
 
@@ -180,7 +180,7 @@ export async function createPropertyNFT(
       tokenId: tokenId.toString(),
       tokenName: metadata.name,
       tokenSymbol: metadata.symbol,
-      totalSupply: "1", // NFTs typically have supply of 1
+      totalSupply: "1",
       treasuryAccountId: metadata.treasuryAccountId
     };
   } catch (error) {

@@ -1,5 +1,5 @@
 import { createServerClient as createSupabaseServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { cookies as nextCookies } from 'next/headers'
 import { Database } from '@/types/supabase'
 
 type CookieOptions = {
@@ -13,8 +13,8 @@ type CookieOptions = {
   httpOnly?: boolean
 }
 
-export const createClient = () => {
-  const cookieStore = cookies()
+export const createClient = async () => {
+  const cookieStore = await nextCookies()
   
   const cookieManager = {
     get(name: string) {

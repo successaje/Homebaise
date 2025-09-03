@@ -57,14 +57,19 @@ export default function UserProperties() {
   useEffect(() => {
     const fetchTreasuryAccounts = async () => {
       if (!sessionUserId) return;
-      
+      if (!properties || properties.length === 0) {
+        setTreasuryAccounts([]);
+        return;
+      }
       try {
+        const ids = properties.map(p => p.id);
         const { data, error } = await supabase
           .from('property_treasury_accounts')
           .select('*')
-          .eq('property_id', properties.map(p => p.id));
+          .in('property_id', ids);
 
         if (!error && data) {
+          // Replace to avoid duplicates and ensure fresh view
           setTreasuryAccounts(data);
         }
       } catch (e) {
@@ -78,6 +83,34 @@ export default function UserProperties() {
   const getTreasuryAccount = (propertyId: string) => {
     return treasuryAccounts.find(ta => ta.property_id === propertyId);
   };
+
+  const getTokenIdForProperty = (propertyId: string): string | null => {
+    const ta = getTreasuryAccount(propertyId);
+    return ta?.token_id || null;
+  };
+
+  const [tokenInfoMap, setTokenInfoMap] = useState<Record<string, any>>({});
+
+  // Fetch token info for tokenized properties
+  useEffect(() => {
+    const fetchTokenInfos = async () => {
+      const tokenized = treasuryAccounts.filter((ta) => !!ta.token_id);
+      for (const ta of tokenized) {
+        const tokenId: string = ta.token_id;
+        if (!tokenId || tokenInfoMap[tokenId]) continue;
+        try {
+          const res = await fetch(`/api/token-info?tokenId=${encodeURIComponent(tokenId)}`);
+          const data = await res.json();
+          if (data?.success && data.token) {
+            setTokenInfoMap((prev) => ({ ...prev, [tokenId]: data.token }));
+          }
+        } catch (e) {
+          console.error('Failed to load token info for', tokenId, e);
+        }
+      }
+    };
+    if (treasuryAccounts?.length) fetchTokenInfos();
+  }, [treasuryAccounts]);
 
   const isPropertyTokenized = (propertyId: string) => {
     return treasuryAccounts.some(ta => ta.property_id === propertyId);
@@ -258,7 +291,8 @@ export default function UserProperties() {
           .eq('property_id', tokenizeProperty.id);
 
         if (!error && data) {
-          setTreasuryAccounts(prev => [...prev, ...data]);
+          // Replace to avoid duplicates and ensure fresh view
+          setTreasuryAccounts(data);
         }
         
         setTokenizationProgress('Tokenization completed successfully! 🎉');
@@ -443,9 +477,21 @@ export default function UserProperties() {
                   Edit
                 </button>
                 {isPropertyTokenized(property.id) ? (
-                  <div className="flex-1 bg-purple-500/20 border border-purple-500/30 text-purple-400 py-1 px-2 rounded text-xs text-center">
-                    Tokenized
-                  </div>
+                  (() => {
+                    const tokenId = getTokenIdForProperty(property.id);
+                    const hashscan = tokenId ? `https://hashscan.io/testnet/token/${tokenId}` : undefined;
+                    return (
+                      <a
+                        href={hashscan}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex-1 bg-purple-500/20 border border-purple-500/30 text-purple-400 py-1 px-2 rounded text-xs text-center hover:bg-purple-500/30"
+                        title={tokenId || 'Tokenized'}
+                      >
+                        Tokenized{tokenId ? ' ↗' : ''}
+                      </a>
+                    );
+                  })()
                 ) : (
                   <button onClick={() => openTokenize(property)} className="flex-1 bg-purple-500/20 border border-purple-500/30 text-purple-400 py-1 px-2 rounded text-xs hover:bg-purple-500/30 transition-colors">
                     Tokenize
@@ -468,6 +514,48 @@ export default function UserProperties() {
                       {getTreasuryAccount(property.id)?.current_balance_hbar || 0} HBAR
                     </span>
                   </div>
+                  {(() => {
+                    const tokenId = getTokenIdForProperty(property.id);
+                    const info = tokenId ? tokenInfoMap[tokenId] : null;
+                    if (!info) return null;
+                    return (
+                      <div className="mt-2 p-2 bg-white/5 rounded">
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className="text-gray-400">Token ID</div>
+                          <div className="text-white font-mono truncate" title={info.tokenId}>{info.tokenId}</div>
+                          <div className="text-gray-400">Name</div>
+                          <div className="text-white">{info.name}</div>
+                          <div className="text-gray-400">Symbol</div>
+                          <div className="text-white">{info.symbol}</div>
+                          <div className="text-gray-400">Total Supply</div>
+                          <div className="text-white">{info.totalSupply}</div>
+                          <div className="text-gray-400">Decimals</div>
+                          <div className="text-white">{info.decimals}</div>
+                          <div className="text-gray-400">Treasury</div>
+                          <div className="text-white font-mono truncate" title={info.treasuryAccountId}>{info.treasuryAccountId}</div>
+                          <div className="text-gray-400">Supply Type</div>
+                          <div className="text-white">{info.supplyType || 'N/A'}</div>
+                          <div className="text-gray-400">Freeze Default</div>
+                          <div className="text-white">{String(info.freezeDefault)}</div>
+                          {info.expiry && (
+                            <>
+                              <div className="text-gray-400">Expiry</div>
+                              <div className="text-white">{new Date(info.expiry).toLocaleString()}</div>
+                            </>
+                          )}
+                        </div>
+                        {/* Optional advanced fields */}
+                        {(info.adminKey || info.kycKey || info.wipeKey || info.pauseKey) && (
+                          <div className="mt-2 text-xs text-gray-400">
+                            {info.adminKey && <div>Admin Key: <span className="text-white font-mono break-all">{info.adminKey}</span></div>}
+                            {info.kycKey && <div>KYC Key: <span className="text-white font-mono break-all">{info.kycKey}</span></div>}
+                            {info.wipeKey && <div>Wipe Key: <span className="text-white font-mono break-all">{info.wipeKey}</span></div>}
+                            {info.pauseKey && <div>Pause Key: <span className="text-white font-mono break-all">{info.pauseKey}</span></div>}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
             </div>

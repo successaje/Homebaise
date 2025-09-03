@@ -8,7 +8,7 @@ import {
   MintedToken,
   TreasuryAccount
 } from '@/lib/hedera-treasury';
-import { Client, PrivateKey, AccountBalanceQuery } from '@hashgraph/sdk';
+import { Client, PrivateKey } from '@hashgraph/sdk';
 
 // Define the property type with existing columns
 type Property = {
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     console.log('Authorization header:', authHeader ? 'present' : 'missing');
     
     // Create Supabase client
-    const supabase = createClient();
+    const supabase = await createClient();
     
     // Try to get session from cookies first
     let { data: { session }, error: sessionError } = await supabase.auth.getSession();
@@ -111,8 +111,8 @@ export async function POST(request: NextRequest) {
           access_token: token,
           refresh_token: '',
           expires_at: Math.floor(Date.now() / 1000) + 3600, // 1 hour from now
-          expires_in: 3600,
-          token_type: 'bearer'
+          token_type: 'bearer',
+          expires_in: 3600
         };
         
         console.log('Created session from Authorization token for user:', user.id);
@@ -125,22 +125,15 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    if (!session) {
-      return NextResponse.json(
-        { error: 'Authentication required: No valid session found' },
-        { status: 401 }
-      );
-    }
-    
     console.log('User session found:', {
-      userId: session.user?.id,
-      email: session.user?.email,
-      expiresAt: session.expires_at,
-      token: session.access_token ? 'token-present' : 'no-token'
+      userId: session?.user?.id,
+      email: session?.user?.email,
+      expiresAt: session?.expires_at,
+      token: session?.access_token ? 'token-present' : 'no-token'
     });
     
     // Get the user ID from the session
-    const userId = session.user.id;
+    const userId = session?.user?.id;
     if (!userId) {
       throw new Error('User ID not found in session');
     }
@@ -164,7 +157,7 @@ export async function POST(request: NextRequest) {
     // Get property details (only select columns that exist)
     const { data: propertyDetails, error: detailsError } = await supabase
       .from('properties')
-      .select('title, description, location, property_type, total_value, status, certificate_token_id')
+      .select('title, description, location, property_type, total_value, status, certificate_token_id, listed_by')
       .eq('id', propertyId)
       .single();
 
@@ -177,7 +170,15 @@ export async function POST(request: NextRequest) {
     }
     
     // Cast to Property type for type safety
-    const property = propertyDetails as Property;
+    const property = propertyDetails as Property & { listed_by?: string };
+
+    // Ensure the current user owns the property (helps avoid RLS insert failures)
+    if (property?.listed_by && property.listed_by !== userId) {
+      return NextResponse.json(
+        { error: 'You do not have permission to tokenize this property' },
+        { status: 403 }
+      );
+    }
 
     // Check if property is already tokenized by looking at status or certificate
     if (property?.status === 'tokenized' || property?.certificate_token_id) {
@@ -200,39 +201,21 @@ export async function POST(request: NextRequest) {
         );
       }
       
-      console.log('Hedera credentials found:', {
-        operatorId,
-        privateKeyLength: operatorPrivateKey.length,
-        privateKeyPrefix: operatorPrivateKey.substring(0, 10) + '...'
-      });
+      console.log('Configuring Hedera client with operator:', operatorId);
+      console.log('Private key length:', operatorPrivateKey.length);
       
-      // Parse the private key properly
-      let parsedPrivateKey;
+      // Create Hedera client with proper private key parsing
+      const client = Client.forTestnet();
+      
       try {
-        parsedPrivateKey = PrivateKey.fromString(operatorPrivateKey);
-        console.log('Private key parsed successfully');
+        // Parse the private key and set operator
+        const privateKey = PrivateKey.fromString(operatorPrivateKey);
+        client.setOperator(operatorId, privateKey);
+        console.log('Hedera client configured successfully');
       } catch (keyError) {
         console.error('Error parsing private key:', keyError);
         return NextResponse.json(
           { error: 'Invalid Hedera private key format' },
-          { status: 500 }
-        );
-      }
-      
-      const client = Client.forTestnet()
-        .setOperator(operatorId, parsedPrivateKey);
-      
-      console.log('Hedera client configured with operator:', operatorId);
-      
-      // Test the client configuration by getting account balance
-      try {
-        const query = new AccountBalanceQuery().setAccountId(operatorId);
-        const accountBalance = await query.execute(client);
-        console.log('Operator account balance:', accountBalance.hbars.toString(), 'HBAR');
-      } catch (balanceError) {
-        console.error('Error getting account balance:', balanceError);
-        return NextResponse.json(
-          { error: 'Failed to verify Hedera client configuration' },
           { status: 500 }
         );
       }
@@ -254,7 +237,7 @@ export async function POST(request: NextRequest) {
           propertyId: propertyId
         };
 
-        tokenResult = await createPropertyNFT(client, metadata);
+        tokenResult = await createPropertyNFT(client, metadata, treasuryAccount.privateKey);
       } else {
         // Fungible token
         const tokenNameToUse = tokenName || property.title || 'Property Token';
@@ -271,17 +254,36 @@ export async function POST(request: NextRequest) {
           propertyId: propertyId
         };
         
-        tokenResult = await createPropertyToken(client, metadata);
+        tokenResult = await createPropertyToken(client, metadata, treasuryAccount.privateKey);
       }
 
-      // Create property treasury account record using existing column names
-      const { error: treasuryError } = await supabase
+      // Create a Supabase admin client (service role) for server-side writes
+      const { createClient: createAdminClient } = await import('@supabase/supabase-js');
+      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      if (!serviceRoleKey) {
+        console.error('Missing SUPABASE_SERVICE_ROLE_KEY');
+        return NextResponse.json(
+          { error: 'Server misconfiguration: missing service role key' },
+          { status: 500 }
+        );
+      }
+      const admin = createAdminClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        serviceRoleKey
+      );
+
+      // Create property treasury account record with token details
+      const { error: treasuryError } = await admin
         .from('property_treasury_accounts')
         .insert({
           property_id: propertyId,
           hedera_account_id: treasuryAccount.accountId,
           hedera_public_key: treasuryAccount.publicKey,
           hedera_private_key: treasuryAccount.privateKey,
+          token_id: tokenResult.tokenId,
+          token_type: tokenType,
+          initial_balance_hbar: Number(treasuryAccount.initialBalance.toTinybars()) / 1e8,
+          status: 'active',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         });
@@ -289,21 +291,23 @@ export async function POST(request: NextRequest) {
       if (treasuryError) {
         console.error('Error saving treasury account:', treasuryError);
         return NextResponse.json(
-          { error: 'Failed to save treasury account' },
+          { error: 'Failed to save treasury account', details: (treasuryError as any)?.message || treasuryError },
           { status: 500 }
         );
       }
 
+      console.log('Successfully saved treasury account and token details to Supabase');
+
       // Update the property with token information using existing columns
       const propertyUpdate = {
-        status: 'tokenized',
+        status: tokenType === 'NON_FUNGIBLE' ? 'certified' : 'active',
         updated_at: new Date().toISOString(),
         certificate_token_id: tokenResult.tokenId.toString(),
         certificate_number: `CERT-${Date.now()}`,
         certificate_issued_at: new Date().toISOString()
       };
 
-      const { error: updateError } = await supabase
+      const { error: updateError } = await admin
         .from('properties')
         .update(propertyUpdate)
         .eq('id', propertyId);
