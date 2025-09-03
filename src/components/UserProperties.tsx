@@ -44,7 +44,7 @@ export default function UserProperties() {
 
   const [isTokenizeOpen, setIsTokenizeOpen] = useState(false);
   const [tokenizeProperty, setTokenizeProperty] = useState<UserPropertyRow | null>(null);
-  const [tokenType, setTokenType] = useState<'fungible' | 'nft'>('fungible');
+  const [tokenType, setTokenType] = useState<'FUNGIBLE' | 'NON_FUNGIBLE'>('FUNGIBLE');
   const [tokenSymbol, setTokenSymbol] = useState('HPROP');
   const [tokenDecimals, setTokenDecimals] = useState(18);
   const [tokenName, setTokenName] = useState('');
@@ -190,34 +190,53 @@ export default function UserProperties() {
       setTokenizationProgress('Creating treasury account on Hedera...');
       setTokenizationStep('treasury');
 
-      // Get the current session token as backup
-      const { data: { session } } = await supabase.auth.getSession();
-      const authToken = session?.access_token;
+      // Get the current session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !session) {
+        console.error('No active session found:', sessionError?.message || 'No session');
+        throw new Error('Authentication required: Please sign in to continue');
+      }
 
+      console.log('Current session:', {
+        user: session.user?.id,
+        expiresAt: session.expires_at,
+        token: session.access_token ? 'token-present' : 'no-token'
+      });
+
+      const requestBody = {
+        propertyId: tokenizeProperty.id,
+        tokenType,
+        tokenSymbol: tokenSymbol.toUpperCase(),
+        tokenDecimals,
+        tokenName: tokenName || `${tokenizeProperty.name || tokenizeProperty.title || 'Property'} Token`
+      };
+      
+      console.log('Sending tokenization request:', requestBody);
+      
       const response = await fetch('/api/tokenize-property', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(authToken && { 'Authorization': `Bearer ${authToken}` })
+          'Authorization': `Bearer ${session.access_token}`
         },
-        body: JSON.stringify({
-          propertyId: tokenizeProperty.id,
-          tokenType,
-          tokenSymbol: tokenSymbol.toUpperCase(),
-          tokenDecimals,
-          tokenName: tokenName || `${tokenizeProperty.name || tokenizeProperty.title || 'Property'} Token`
-        }),
+        credentials: 'include', // Important for sending cookies
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP ${response.status}: Failed to tokenize property`);
+        throw new Error(
+          errorData.error || 
+          `Failed to tokenize property: ${response.status} ${response.statusText}`
+        );
       }
+
+      const result = await response.json();
+      console.log('Tokenization successful:', result);
 
       setTokenizationProgress('Creating tokens on Hedera...');
       setTokenizationStep('tokens');
-
-      const result = await response.json();
       
       if (result.success) {
         setTokenizationProgress('Finalizing tokenization...');
@@ -282,6 +301,56 @@ export default function UserProperties() {
       setTimeout(() => document.body.removeChild(div), 300)
     }, 2500)
   }
+
+  // Debug functions
+  const testAuth = async () => {
+    try {
+      const response = await fetch('/api/test-auth');
+      const result = await response.json();
+      console.log('Auth test result:', result);
+      notify(result.success ? 'Auth test successful' : 'Auth test failed', result.success ? 'success' : 'error');
+    } catch (error) {
+      console.error('Auth test error:', error);
+      notify('Auth test failed', 'error');
+    }
+  };
+
+  const inspectCookies = async () => {
+    try {
+      const response = await fetch('/api/debug-cookies');
+      const result = await response.json();
+      console.log('Cookie debug result:', result);
+      console.log('Full cookie details:', result.cookieDetails);
+      console.log('All cookie names:', result.allCookieNames);
+      notify(`Found ${result.totalCookies} cookies, ${result.supabaseCookies} Supabase`, 'info');
+    } catch (error) {
+      console.error('Cookie debug error:', error);
+      notify('Cookie debug failed', 'error');
+    }
+  };
+
+  const checkDatabaseSchema = async () => {
+    try {
+      const response = await fetch('/api/check-db-schema');
+      const result = await response.json();
+      console.log('Database schema check result:', result);
+      
+      if (result.success) {
+        const { schemaStatus } = result;
+        let message = 'Database schema check completed:\n';
+        message += `• Treasury accounts table: ${schemaStatus.property_treasury_accounts.exists ? '✅' : '❌'}\n`;
+        message += `• Properties columns: ${schemaStatus.properties_columns.exists ? '✅' : '❌'}\n`;
+        message += `• Certificates table: ${schemaStatus.property_certificates.exists ? '✅' : '❌'}`;
+        
+        notify(message, 'info');
+      } else {
+        notify('Database schema check failed', 'error');
+      }
+    } catch (error) {
+      console.error('Database schema check error:', error);
+      notify('Database schema check failed', 'error');
+    }
+  };
 
   if (loading || authLoading) {
     return (
@@ -500,38 +569,22 @@ export default function UserProperties() {
             <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
               <div className="flex space-x-2 mb-2">
                 <button 
-                  onClick={async () => {
-                    try {
-                      const response = await fetch('/api/test-auth');
-                      const result = await response.json();
-                      console.log('Auth test result:', result);
-                      notify(result.success ? 'Auth test successful' : 'Auth test failed', result.success ? 'success' : 'error');
-                    } catch (error) {
-                      console.error('Auth test error:', error);
-                      notify('Auth test failed', 'error');
-                    }
-                  }}
+                  onClick={testAuth}
                   className="text-yellow-400 text-xs hover:text-yellow-300 px-2 py-1 border border-yellow-500/30 rounded"
                 >
                   🔍 Test Authentication
                 </button>
                 <button 
-                  onClick={async () => {
-                    try {
-                      const response = await fetch('/api/debug-cookies');
-                      const result = await response.json();
-                      console.log('Cookie debug result:', result);
-                      console.log('Full cookie details:', result.cookieDetails);
-                      console.log('All cookie names:', result.allCookieNames);
-                      notify(`Found ${result.totalCookies} cookies, ${result.supabaseCookies} Supabase`, 'info');
-                    } catch (error) {
-                      console.error('Cookie debug error:', error);
-                      notify('Cookie debug failed', 'error');
-                    }
-                  }}
+                  onClick={inspectCookies}
                   className="text-yellow-400 text-xs hover:text-yellow-300 px-2 py-1 border border-yellow-500/30 rounded"
                 >
                   🍪 Inspect Cookies
+                </button>
+                <button 
+                  onClick={checkDatabaseSchema}
+                  className="text-yellow-400 text-xs hover:text-yellow-300 px-2 py-1 border border-yellow-500/30 rounded"
+                >
+                  💾 Check DB Schema
                 </button>
               </div>
               <p className="text-yellow-400 text-xs">
@@ -563,11 +616,11 @@ export default function UserProperties() {
                 <label className="block text-sm text-gray-300 mb-1">Token Type</label>
                 <div className="flex items-center space-x-3 text-sm">
                   <label className="inline-flex items-center space-x-2">
-                    <input type="radio" className="accent-emerald-500" checked={tokenType==='fungible'} onChange={() => setTokenType('fungible')} />
+                    <input type="radio" className="accent-emerald-500" checked={tokenType==='FUNGIBLE'} onChange={() => setTokenType('FUNGIBLE')} />
                     <span className="text-gray-300">Fungible (HTS)</span>
                   </label>
                   <label className="inline-flex items-center space-x-2">
-                    <input type="radio" className="accent-emerald-500" checked={tokenType==='nft'} onChange={() => setTokenType('nft')} />
+                    <input type="radio" className="accent-emerald-500" checked={tokenType==='NON_FUNGIBLE'} onChange={() => setTokenType('NON_FUNGIBLE')} />
                     <span className="text-gray-300">NFT Certificate</span>
                   </label>
                 </div>
@@ -596,7 +649,7 @@ export default function UserProperties() {
                 </div>
               </div>
 
-              {tokenType === 'fungible' && (
+              {tokenType === 'FUNGIBLE' && (
                 <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
                   <p className="text-emerald-400 text-sm">
                     <strong>Token Supply:</strong> {tokenizeProperty.total_value ? 

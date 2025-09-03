@@ -1,10 +1,11 @@
-import type { NextConfig } from 'next';
-
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
-  webpack: (config, { isServer, dev }) => {
-    // Add fallbacks for Node.js modules for client-side
+  images: {
+    domains: ['localhost', 'your-supabase-url.supabase.co'],
+  },
+  webpack: (config, { isServer }) => {
     if (!isServer) {
       config.resolve.fallback = {
         ...config.resolve.fallback,
@@ -21,13 +22,8 @@ const nextConfig: NextConfig = {
         zlib: false,
       };
     }
-
     return config;
-  },
-  // Configure images if needed
-  images: {
-    domains: ['localhost', 'your-supabase-url.supabase.co'],
   },
 };
 
-export default nextConfig;
+module.exports = nextConfig;

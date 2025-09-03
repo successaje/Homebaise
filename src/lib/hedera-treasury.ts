@@ -51,15 +51,15 @@ export async function createPropertyTreasuryAccount(
     const privateKey = PrivateKey.generateECDSA();
     const publicKey = privateKey.publicKey;
 
-    // Create the account
+    // Create the account with higher transaction fee
     const transaction = new AccountCreateTransaction()
       .setKey(publicKey)
       .setInitialBalance(initialBalance)
       .setAccountMemo("Property Treasury Account");
 
-    // Sign and execute the transaction
+    // Sign and execute the transaction with higher fee
     const response = await transaction
-      .setMaxTransactionFee(new Hbar(2))
+      .setMaxTransactionFee(new Hbar(5))
       .execute(client);
 
     // Get the receipt
@@ -103,9 +103,9 @@ export async function createPropertyToken(
       .setMaxSupply(metadata.maxSupply)
       .setTokenType(TokenType.FungibleCommon);
 
-    // Sign and execute the transaction
+    // Sign and execute the transaction with higher fee
     const response = await transaction
-      .setMaxTransactionFee(new Hbar(2))
+      .setMaxTransactionFee(new Hbar(5))
       .execute(client);
 
     // Get the receipt
@@ -137,6 +137,19 @@ export async function createPropertyNFT(
   metadata: TokenMetadata
 ): Promise<MintedToken> {
   try {
+    // Check operator account balance first
+    const operatorAccountId = client.operatorAccountId;
+    if (!operatorAccountId) {
+      throw new Error("Client not configured with operator account");
+    }
+    
+    const balance = await client.getAccountBalance(operatorAccountId);
+    console.log(`Operator account balance before NFT creation: ${balance.hbars.toString()} HBAR`);
+    
+    if (balance.hbars.toTinybars() < new Hbar(5).toTinybars()) {
+      throw new Error(`Insufficient operator balance. Need at least 5 HBAR, have ${balance.hbars.toString()}`);
+    }
+
     const treasuryAccountId = AccountId.fromString(metadata.treasuryAccountId);
 
     // Create the NFT token
@@ -148,9 +161,9 @@ export async function createPropertyNFT(
       .setSupplyType(TokenSupplyType.Finite)
       .setMaxSupply(metadata.maxSupply);
 
-    // Sign and execute the transaction
+    // Sign and execute the transaction with higher fee
     const response = await transaction
-      .setMaxTransactionFee(new Hbar(2))
+      .setMaxTransactionFee(new Hbar(5))
       .execute(client);
 
     // Get the receipt
@@ -160,6 +173,8 @@ export async function createPropertyNFT(
     if (!tokenId) {
       throw new Error("Failed to get token ID from receipt");
     }
+
+    console.log(`Successfully created NFT token: ${tokenId.toString()}`);
 
     return {
       tokenId: tokenId.toString(),
@@ -191,9 +206,9 @@ export async function mintTokens(
       .setTokenId(token)
       .setAmount(amount);
 
-    // Sign and execute the transaction
+    // Sign and execute the transaction with higher fee
     await transaction
-      .setMaxTransactionFee(new Hbar(2))
+      .setMaxTransactionFee(new Hbar(5))
       .execute(client);
 
     console.log(`Successfully minted ${amount} tokens`);
@@ -221,9 +236,9 @@ export async function mintNFT(
       .setTokenType(TokenType.NonFungibleUnique)
       .setMetadata(Buffer.from(metadata, "utf8"));
 
-    // Sign and execute the transaction
+    // Sign and execute the transaction with higher fee
     await transaction
-      .setMaxTransactionFee(new Hbar(2))
+      .setMaxTransactionFee(new Hbar(5))
       .execute(client);
 
     console.log("Successfully minted NFT");
@@ -252,9 +267,9 @@ export async function transferTokens(
       .addTokenTransfer(token, fromAccount, -amount)
       .addTokenTransfer(token, toAccount, amount);
 
-    // Sign and execute the transaction
+    // Sign and execute the transaction with higher fee
     await transaction
-      .setMaxTransactionFee(new Hbar(2))
+      .setMaxTransactionFee(new Hbar(5))
       .execute(client);
 
     console.log(`Successfully transferred ${amount} tokens`);
