@@ -50,8 +50,8 @@ export default function ListPropertyPage() {
     city: '',
     address: '',
     totalValue: 0,
-    tokenPrice: 0,
-    minInvestment: 0,
+    tokenPrice: 1,
+    minInvestment: 10,
     maxInvestment: 0,
     yieldRate: '',
     images: [],
@@ -213,9 +213,9 @@ export default function ListPropertyPage() {
           city: form.city,
           address: form.address,
           total_value: form.totalValue,
-          token_price: form.tokenPrice,
-          min_investment: form.minInvestment,
-          max_investment: form.maxInvestment,
+          token_price: 1,
+          min_investment: 10,
+          max_investment: Math.floor(form.totalValue * 0.2),
           yield_rate: form.yieldRate,
           ipfs_metadata_cid: metadataCid[0],
           ipfs_image_cids: imageCids,
@@ -421,7 +421,16 @@ export default function ListPropertyPage() {
                   <input
                     type="number"
                     value={form.totalValue}
-                    onChange={(e) => handleInputChange('totalValue', parseFloat(e.target.value) || 0)}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value) || 0;
+                      setForm(prev => ({
+                        ...prev,
+                        totalValue: val,
+                        tokenPrice: 1,
+                        minInvestment: 10,
+                        maxInvestment: Math.floor(val * 0.2)
+                      }));
+                    }}
                     className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="0"
                   />
@@ -432,10 +441,12 @@ export default function ListPropertyPage() {
                   <input
                     type="number"
                     value={form.tokenPrice}
-                    onChange={(e) => handleInputChange('tokenPrice', parseFloat(e.target.value) || 0)}
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    placeholder="0"
+                    onChange={() => {}}
+                    disabled
+                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60"
+                    placeholder="1"
                   />
+                  <p className="text-xs text-gray-400 mt-1">Token price is fixed at $1.</p>
                 </div>
 
                 <div>
@@ -443,10 +454,12 @@ export default function ListPropertyPage() {
                   <input
                     type="number"
                     value={form.minInvestment}
-                    onChange={(e) => handleInputChange('minInvestment', parseFloat(e.target.value) || 0)}
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    placeholder="0"
+                    onChange={() => {}}
+                    disabled
+                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60"
+                    placeholder="10"
                   />
+                  <p className="text-xs text-gray-400 mt-1">Minimum investment is fixed at $10.</p>
                 </div>
 
                 <div>
@@ -454,10 +467,12 @@ export default function ListPropertyPage() {
                   <input
                     type="number"
                     value={form.maxInvestment}
-                    onChange={(e) => handleInputChange('maxInvestment', parseFloat(e.target.value) || 0)}
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    onChange={() => {}}
+                    disabled
+                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60"
                     placeholder="0"
                   />
+                  <p className="text-xs text-gray-400 mt-1">Maximum per wallet in primary sale is 20% of total value.</p>
                 </div>
 
                 <div>

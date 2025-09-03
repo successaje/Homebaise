@@ -242,12 +242,15 @@ export async function POST(request: NextRequest) {
         // Fungible token
         const tokenNameToUse = tokenName || property.title || 'Property Token';
         const tokenSymbolToUse = tokenSymbol || 'HPROP';
-        const initialSupply = 1000000;
+        // Use the property's total_value as the initial supply with decimals = 0
+        const propertyValue = Number(property.total_value || 0);
+        const initialSupply = Math.max(1, Math.floor(propertyValue));
+        const decimalsForFungible = 0; // no fractional ownership at token level
         
         const metadata: TokenMetadata = {
           name: tokenNameToUse,
           symbol: tokenSymbolToUse,
-          decimals: tokenDecimals || 8,
+          decimals: decimalsForFungible,
           initialSupply,
           maxSupply: initialSupply * 2, // Allow minting up to double the initial supply
           treasuryAccountId: treasuryAccount.accountId,

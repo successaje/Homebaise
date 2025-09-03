@@ -46,7 +46,6 @@ export default function UserProperties() {
   const [tokenizeProperty, setTokenizeProperty] = useState<UserPropertyRow | null>(null);
   const [tokenType, setTokenType] = useState<'FUNGIBLE' | 'NON_FUNGIBLE'>('FUNGIBLE');
   const [tokenSymbol, setTokenSymbol] = useState('HPROP');
-  const [tokenDecimals, setTokenDecimals] = useState(18);
   const [tokenName, setTokenName] = useState('');
   const [tokenizing, setTokenizing] = useState(false);
   const [tokenizationProgress, setTokenizationProgress] = useState<string>('');
@@ -241,7 +240,6 @@ export default function UserProperties() {
         propertyId: tokenizeProperty.id,
         tokenType,
         tokenSymbol: tokenSymbol.toUpperCase(),
-        tokenDecimals,
         tokenName: tokenName || `${tokenizeProperty.name || tokenizeProperty.title || 'Property'} Token`
       };
       
@@ -724,29 +722,21 @@ export default function UserProperties() {
                     placeholder="e.g. HPROP"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm text-gray-300 mb-1">Decimals</label>
-                  <input
-                    type="number"
-                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                    value={tokenDecimals}
-                    onChange={(e) => setTokenDecimals(Number(e.target.value))}
-                    min={0}
-                    max={18}
-                  />
-                </div>
               </div>
 
               {tokenType === 'FUNGIBLE' && (
                 <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
                   <p className="text-emerald-400 text-sm">
                     <strong>Token Supply:</strong> {tokenizeProperty.total_value ? 
-                      `${(tokenizeProperty.total_value * Math.pow(10, tokenDecimals)).toLocaleString()} tokens` : 
+                      `${Math.floor(tokenizeProperty.total_value).toLocaleString()} tokens` : 
                       'N/A'
                     }
                   </p>
                   <p className="text-emerald-400 text-xs">
-                    Based on 1:1 ratio with property value
+                    Based on 1:1 ratio with property value, decimals = 0 (no fractional ownership)
+                  </p>
+                  <p className="text-blue-400 text-xs mt-1">
+                    Primary Sale Investment Range: minimum $10, maximum default 20% of property value (lister can edit).
                   </p>
                 </div>
               )}

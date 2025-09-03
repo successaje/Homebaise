@@ -94,16 +94,20 @@ export async function createPropertyToken(
   try {
     const treasuryAccountId = AccountId.fromString(metadata.treasuryAccountId);
 
+    // Build a descriptive token memo
+    const referenceCode = `HB-PRPTY-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 900) + 100).padStart(3, '0')}`;
+    const tokenMemo = `Homebaise | ${metadata.name} | Tokenized RE | ${referenceCode}`;
+
     // Build the transaction and set fee before freezing
     const transaction = new TokenCreateTransaction()
       .setTokenName(metadata.name)
       .setTokenSymbol(metadata.symbol)
-      .setDecimals(metadata.decimals)
       .setInitialSupply(metadata.initialSupply)
       .setTreasuryAccountId(treasuryAccountId)
       .setSupplyType(TokenSupplyType.Finite)
       .setMaxSupply(metadata.maxSupply)
       .setTokenType(TokenType.FungibleCommon)
+      .setTokenMemo(tokenMemo)
       .setMaxTransactionFee(new Hbar(5));
 
     // Freeze then sign with treasury key, then execute
@@ -152,14 +156,20 @@ export async function createPropertyNFT(
 
     const treasuryAccountId = AccountId.fromString(metadata.treasuryAccountId);
 
+    // Build a descriptive token memo
+    const referenceCode = `HB-PRPTY-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 900) + 100).padStart(3, '0')}`;
+    const tokenMemo = `Homebaise | ${metadata.name} | Tokenized RE | ${referenceCode}`;
+
     // Build the transaction and set fee before freezing
     const transaction = new TokenCreateTransaction()
       .setTokenName(metadata.name)
       .setTokenSymbol(metadata.symbol)
       .setTokenType(TokenType.NonFungibleUnique)
+      .setDecimals(0)
+      .setInitialSupply(0)
       .setTreasuryAccountId(treasuryAccountId)
-      .setSupplyType(TokenSupplyType.Finite)
       .setMaxSupply(metadata.maxSupply)
+      .setTokenMemo(tokenMemo)
       .setMaxTransactionFee(new Hbar(5));
 
     // Freeze then sign with treasury key, then execute
