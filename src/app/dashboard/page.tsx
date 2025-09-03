@@ -12,6 +12,7 @@ import KYCStatus from '@/components/KYCStatus'
 import UserAvatar from '@/components/UserAvatar'
 import UserCertificates from '@/components/UserCertificates'
 import UserProperties from '@/components/UserProperties'
+import CopyButton from '@/components/CopyButton'
 import { useRouter } from 'next/navigation'
 
 const supabase = createClient(
@@ -181,9 +182,12 @@ export default function DashboardPage() {
                       </span>
                       <span className="text-emerald-400 text-lg font-medium">HBAR</span>
                     </div>
-                    <p className="text-gray-400 text-xs font-mono mt-1 truncate">
-                      {profile.wallet_address}
-                    </p>
+                    <div className="flex items-center mt-1 space-x-1">
+                      <p className="text-gray-400 text-xs font-mono truncate">
+                        {profile.wallet_address}
+                      </p>
+                      <CopyButton text={profile.wallet_address} size={14} />
+                    </div>
                     {balanceError && (
                       <p className="text-red-400 text-xs mt-1">
                         {balanceError}
@@ -230,11 +234,12 @@ export default function DashboardPage() {
                       {profile.wallet_address ? 'Active' : 'Not Created'}
                     </p>
                     {profile.hedera_evm_address && (
-                      <p className="text-gray-400 text-xs font-mono mt-1">
-                        ID: {profile.wallet_address}
-                        <br />
-                        {profile.hedera_evm_address}
-                      </p>
+                      <div className="flex items-center mt-1">
+                        <p className="text-gray-400 text-xs font-mono truncate">
+                          {profile.hedera_evm_address}
+                        </p>
+                        <CopyButton text={profile.hedera_evm_address} size={14} />
+                      </div>
                     )}
                   </div>
                   <div className="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center">
