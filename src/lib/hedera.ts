@@ -73,17 +73,40 @@ export async function createHederaAccount(): Promise<HederaAccountResult> {
 
 export async function getAccountBalance(accountId: string): Promise<number> {
   try {
-    const mirrorNodeUrl = `https://testnet.mirrornode.hedera.com/api/v1/balances?account.id=${accountId}`;
+    if (!accountId) {
+      console.error('No account ID provided to getAccountBalance');
+      return 0;
+    }
+
+    // Clean up the account ID format if needed
+    const cleanAccountId = accountId.trim();
+    console.log(`Fetching balance for account: ${cleanAccountId}`);
+    
+    const mirrorNodeUrl = `https://testnet.mirrornode.hedera.com/api/v1/balances?account.id=${cleanAccountId}`;
+    console.log(`Making request to: ${mirrorNodeUrl}`);
+    
     const response = await fetch(mirrorNodeUrl);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Error response from mirror node (${response.status}):`, errorText);
+      return 0;
+    }
+    
     const data = await response.json();
+    console.log('Mirror node response:', data);
 
     if (data.balances && data.balances.length > 0) {
       const balanceInTinybars = data.balances[0].balance;
-      return balanceInTinybars / 100000000;
+      const balanceInHbar = balanceInTinybars / 100000000;
+      console.log(`Balance for ${cleanAccountId}: ${balanceInHbar} HBAR`);
+      return balanceInHbar;
     }
+    
+    console.log('No balance found for account:', cleanAccountId);
     return 0;
   } catch (error) {
-    console.error('Error fetching account balance:', error);
+    console.error('Error in getAccountBalance:', error);
     return 0;
   }
 }

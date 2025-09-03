@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { getCurrentUserProfile, ProfileRow } from '@/lib/profile'
+import { getAccountBalance } from '@/lib/hedera'
 import Link from 'next/link'
 import MagneticEffect from '@/components/MagneticEffect'
 import ScrollAnimations from '@/components/ScrollAnimations'
@@ -22,8 +23,12 @@ export default function DashboardPage() {
   const [profile, setProfile] = useState<ProfileRow | null>(null)
   const [loading, setLoading] = useState(true)
   const [session, setSession] = useState<any>(null)
+  const [balance, setBalance] = useState<number | null>(null)
+  const [balanceLoading, setBalanceLoading] = useState(false)
+  const [balanceError, setBalanceError] = useState<string | null>(null)
   const router = useRouter()
 
+  // Fetch user profile and Hedera account balance
   useEffect(() => {
     const getUser = async () => {
       try {
@@ -42,6 +47,24 @@ export default function DashboardPage() {
         const profileData = await getCurrentUserProfile()
         console.log('Dashboard - Profile data:', profileData)
         setProfile(profileData)
+
+        // If user has a Hedera account, fetch the balance
+        if (profileData?.wallet_address) {
+          setBalanceLoading(true)
+          setBalanceError(null)
+          try {
+            console.log('Fetching balance for account:', profileData.wallet_address)
+            const accountBalance = await getAccountBalance(profileData.wallet_address)
+            console.log('Received balance:', accountBalance)
+            setBalance(accountBalance)
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Failed to fetch balance'
+            console.error('Error fetching Hedera balance:', errorMessage, error)
+            setBalanceError(errorMessage)
+          } finally {
+            setBalanceLoading(false)
+          }
+        }
       } catch (error) {
         console.error('Dashboard - Error fetching profile:', error)
       } finally {
@@ -118,28 +141,56 @@ export default function DashboardPage() {
           <ScrollAnimations animationType="fade-in-up">
             {/* Welcome Section */}
             <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-8 border border-white/10 mb-8">
-              <div className="flex items-center space-x-6">
-                <UserAvatar 
-                  avatarUrl={profile.avatar_url} 
-                  fullName={profile.full_name}
-                  size="xl"
-                  showName={false}
-                  className="ring-4 ring-emerald-500/20"
-                />
-                <div className="flex-1">
-                  <div className="flex items-center space-x-3 mb-2">
-                    <h1 className="text-3xl font-bold text-white">
-                      Welcome back, {profile.full_name || 'User'}!
-                    </h1>
-                    {verified && <VerifiedBadge />}
+              <div className="flex items-start justify-between">
+                <div className="flex items-center space-x-6">
+                  <UserAvatar 
+                    avatarUrl={profile.avatar_url} 
+                    fullName={profile.full_name}
+                    size="xl"
+                    showName={false}
+                    className="ring-4 ring-emerald-500/20"
+                  />
+                  <div>
+                    <div className="flex items-center space-x-3 mb-2">
+                      <h1 className="text-3xl font-bold text-white">
+                        Welcome back, {profile.full_name || 'User'}!
+                      </h1>
+                      {verified && <VerifiedBadge />}
+                    </div>
+                    <p className="text-gray-300 text-lg">{profile.email}</p>
+                    {profile.role && (
+                      <span className="inline-block bg-emerald-500/20 text-emerald-300 px-3 py-1 rounded-full text-sm font-medium mt-2">
+                        {profile.role}
+                      </span>
+                    )}
                   </div>
-                  <p className="text-gray-300 text-lg">{profile.email}</p>
-                  {profile.role && (
-                    <span className="inline-block bg-emerald-500/20 text-emerald-300 px-3 py-1 rounded-full text-sm font-medium mt-2">
-                      {profile.role}
-                    </span>
-                  )}
                 </div>
+
+                {/* Hedera Account Balance */}
+                {profile.wallet_address && (
+                  <div className="bg-white/5 rounded-xl p-4 border border-white/10 min-w-[280px]">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-gray-400 text-sm">Hedera Balance</span>
+                      {balanceLoading && (
+                        <span className="text-xs text-gray-400">Updating...</span>
+                      )}
+                    </div>
+                    <div className="flex items-baseline space-x-2">
+                      <span className="text-2xl font-bold text-white">
+                        {balanceLoading ? '...' : (balance?.toFixed(2) || '0.00')}
+                      </span>
+                      <span className="text-emerald-400 text-lg font-medium">HBAR</span>
+                    </div>
+                    <p className="text-gray-400 text-xs font-mono mt-1 truncate">
+                      {profile.wallet_address}
+                    </p>
+                    {balanceError && (
+                      <p className="text-red-400 text-xs mt-1">
+                        {balanceError}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -162,7 +213,7 @@ export default function DashboardPage() {
                   <div>
                     <p className="text-gray-400 text-sm">Wallet</p>
                     <p className="text-white text-2xl font-bold">
-                      {profile.wallet_address ? 'Connected' : 'Not Connected'}
+                      {profile.hedera_account_id ? 'Connected' : 'Not Connected'}
                     </p>
                   </div>
                   <div className="w-12 h-12 bg-emerald-500/20 rounded-lg flex items-center justify-center">
@@ -176,8 +227,15 @@ export default function DashboardPage() {
                   <div>
                     <p className="text-gray-400 text-sm">Hedera Account</p>
                     <p className="text-white text-2xl font-bold">
-                      {profile.hedera_account_id ? 'Active' : 'Not Created'}
+                      {profile.wallet_address ? 'Active' : 'Not Created'}
                     </p>
+                    {profile.hedera_evm_address && (
+                      <p className="text-gray-400 text-xs font-mono mt-1">
+                        ID: {profile.wallet_address}
+                        <br />
+                        {profile.hedera_evm_address}
+                      </p>
+                    )}
                   </div>
                   <div className="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center">
                     <span className="text-purple-400 text-xl">⚡</span>

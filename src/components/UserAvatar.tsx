@@ -37,19 +37,27 @@ export default function UserAvatar({
 
   const displayName = fullName || email?.split('@')[0] || 'User';
 
+  const avatarContent = avatarUrl ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img 
+      src={avatarUrl} 
+      alt={displayName} 
+      className={`${sizeClasses[size]} rounded-xl object-cover`}
+      onError={(e) => {
+        // If image fails to load, show the fallback emoji
+        const target = e.target as HTMLImageElement;
+        target.style.display = 'none';
+        const fallback = target.nextElementSibling as HTMLElement;
+        if (fallback) fallback.style.display = 'block';
+      }}
+    />
+  ) : null;
+
   return (
     <div className={`flex items-center space-x-3 ${className}`}>
       <div className={`${sizeClasses[size]} rounded-xl bg-white/10 flex items-center justify-center relative`}>
-        {avatarUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img 
-            src={avatarUrl} 
-            alt={displayName} 
-            className={`${sizeClasses[size]} rounded-xl object-cover`} 
-          />
-        ) : (
-          <span className="text-white/70">👤</span>
-        )}
+        {avatarContent}
+        <span className="text-white/70" style={{ display: avatarContent ? 'none' : 'block' }}>👤</span>
       </div>
       {showName && (
         <div className="flex items-center space-x-2">
