@@ -263,6 +263,8 @@ export default function UserProperties() {
         );
       }
 
+      
+
       const result = await response.json();
       console.log('Tokenization successful:', result);
 

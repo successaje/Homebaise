@@ -25,39 +25,48 @@ export default function PropertyApprovalModal({ property, isOpen, onClose, onApp
     
     setLoading(true)
     try {
-      // 1. Update property status to approved
-      const { error: propertyError } = await supabase
-        .from('properties')
-        .update({
-          status: 'active',
-          approved_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', property.id)
-
-      if (propertyError) {
-        console.error('Error approving property:', propertyError)
-        return
-      }
-
-      // 2. Generate certificate
+      // 1. Generate certificate NFT first
       setCertificateGenerating(true)
-      const certificateResponse = await fetch('/api/generate-certificate', {
+      const certificateResponse = await fetch('/api/mint-certificate-nft', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           propertyId: property.id,
+          propertyName: property.title || property.name,
+          location: property.location,
+          valuationUSD: property.total_value,
+          tokenSymbol: `HB-${property.id.substring(0, 6).toUpperCase()}`,
           approvalNotes
         }),
       })
 
       if (!certificateResponse.ok) {
-        console.error('Error generating certificate:', await certificateResponse.text())
-      } else {
-        const certificateData = await certificateResponse.json()
-        console.log('Certificate generated:', certificateData)
+        const error = await certificateResponse.text()
+        console.error('Error generating certificate NFT:', error)
+        throw new Error(`Failed to generate certificate NFT: ${error}`)
+      }
+
+      const { certificateTokenId, certificateNumber } = await certificateResponse.json()
+      console.log('Certificate NFT minted:', { certificateTokenId, certificateNumber })
+
+      // 2. Update property status to approved with certificate info
+      const { error: propertyError } = await supabase
+        .from('properties')
+        .update({
+          status: 'active',
+          approved_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          certificate_token_id: certificateTokenId,
+          certificate_number: certificateNumber,
+          certificate_issued_at: new Date().toISOString()
+        })
+        .eq('id', property.id)
+
+      if (propertyError) {
+        console.error('Error updating property with certificate:', propertyError)
+        throw propertyError
       }
 
       onApproved()
