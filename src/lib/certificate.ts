@@ -1,4 +1,4 @@
-import { createNftAndMint } from './hedera';
+import { mintCertificateNFT } from './hedera';
 import { uploadToIPFS } from './ipfs';
 
 export interface PropertyCertificate {
@@ -15,7 +15,6 @@ export interface PropertyCertificate {
     kycVerified: boolean;
     legalDocsValidated: boolean;
     ownershipConfirmed: boolean;
-    tokenized: boolean;
     complianceScore: number;
   };
 }
@@ -92,7 +91,6 @@ export function createCertificateMetadata(certificate: PropertyCertificate): Cer
         <text x="50" y="405" fill="#D1D5DB" font-family="Arial, sans-serif" font-size="11">KYC Verified: ${certificate.metadata.kycVerified ? '✓' : '✗'}</text>
         <text x="50" y="420" fill="#D1D5DB" font-family="Arial, sans-serif" font-size="11">Legal Docs: ${certificate.metadata.legalDocsValidated ? '✓' : '✗'}</text>
         <text x="50" y="435" fill="#D1D5DB" font-family="Arial, sans-serif" font-size="11">Ownership: ${certificate.metadata.ownershipConfirmed ? '✓' : '✗'}</text>
-        <text x="50" y="450" fill="#D1D5DB" font-family="Arial, sans-serif" font-size="11">Tokenized: ${certificate.metadata.tokenized ? '✓' : '✗'}</text>
         
         <!-- Footer -->
         <text x="200" y="520" text-anchor="middle" fill="#9CA3AF" font-family="Arial, sans-serif" font-size="10">Issued: ${new Date(certificate.issuedDate).toLocaleDateString()}</text>
@@ -107,7 +105,6 @@ export function createCertificateMetadata(certificate: PropertyCertificate): Cer
       { trait_type: 'KYC Verified', value: certificate.metadata.kycVerified },
       { trait_type: 'Legal Docs Validated', value: certificate.metadata.legalDocsValidated },
       { trait_type: 'Ownership Confirmed', value: certificate.metadata.ownershipConfirmed },
-      { trait_type: 'Tokenized', value: certificate.metadata.tokenized },
       { trait_type: 'Property Value', value: `$${certificate.totalValue.toLocaleString()}` },
       { trait_type: 'Location', value: certificate.location },
       { trait_type: 'Issued Date', value: certificate.issuedDate }
@@ -129,7 +126,6 @@ export async function generatePropertyCertificate(
     kycVerified: boolean;
     legalDocsValidated: boolean;
     ownershipConfirmed: boolean;
-    tokenized: boolean;
   }
 ): Promise<{ tokenId: string; certificateNumber: string; metadataUrl: string }> {
   console.log('Starting certificate generation for property:', property.id);
@@ -141,9 +137,8 @@ export async function generatePropertyCertificate(
   const complianceScore = [
     verificationData.kycVerified,
     verificationData.legalDocsValidated,
-    verificationData.ownershipConfirmed,
-    verificationData.tokenized
-  ].filter(Boolean).length * 25;
+    verificationData.ownershipConfirmed
+  ].filter(Boolean).length * 33.33; // 3 checks = 100% max
 
   const certificate: PropertyCertificate = {
     propertyId: property.id,
@@ -169,15 +164,14 @@ export async function generatePropertyCertificate(
   const metadataUrl = await uploadToIPFS(JSON.stringify(metadata, null, 2));
   console.log('Metadata uploaded to IPFS:', metadataUrl);
   
-  // Create NFT on Hedera
-  console.log('Creating NFT on Hedera...');
-  const result = await createNftAndMint({
+  // Mint NFT from pre-deployed certificate contract
+  console.log('Minting NFT from pre-deployed certificate contract...');
+  const result = await mintCertificateNFT({
     tokenName: `Property Certificate - ${property.name}`,
     tokenSymbol: 'PROPCERT',
-    maxSupply: 1,
-    metadataCids: [metadataUrl]
+    metadataUrl: metadataUrl
   });
-  console.log('NFT created on Hedera:', result.tokenId);
+  console.log('Certificate NFT minted:', result.tokenId, 'Serial:', result.serialNumber);
 
     console.log('Certificate generation completed successfully');
     return {

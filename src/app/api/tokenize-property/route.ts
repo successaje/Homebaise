@@ -180,10 +180,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if property is already tokenized by looking at status or certificate
-    if (property?.status === 'tokenized' || property?.certificate_token_id) {
+    // Check if property is already tokenized
+    if (property?.status === 'tokenized') {
       return NextResponse.json(
         { error: 'Property is already tokenized' },
+        { status: 400 }
+      );
+    }
+
+    // Check if property is certified (required for tokenization)
+    if (property?.status !== 'certified' && !property?.certificate_token_id) {
+      return NextResponse.json(
+        { error: 'Property must be certified before tokenization' },
         { status: 400 }
       );
     }

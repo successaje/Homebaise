@@ -1,4 +1,4 @@
-import { Client, AccountCreateTransaction, PrivateKey, PublicKey, Hbar, TokenCreateTransaction, TokenType, TokenSupplyType, TokenAssociateTransaction, TransferTransaction, TokenMintTransaction } from '@hashgraph/sdk';
+import { Client, AccountCreateTransaction, PrivateKey, PublicKey, Hbar, TokenCreateTransaction, TokenType, TokenSupplyType, TokenAssociateTransaction, TransferTransaction, TokenMintTransaction, AccountId, TokenId } from '@hashgraph/sdk';
 
 interface HederaAccountResult {
   accountId: string;
@@ -200,4 +200,127 @@ export async function createNftAndMint(input: CreateNftInput): Promise<CreateNft
 
   client.close();
   return { tokenId: tokenId.toString(), mintedSerials: serials };
+}
+
+export interface MintCertificateNFTInput {
+  tokenName: string;
+  tokenSymbol: string;
+  metadataUrl: string;
+}
+
+export interface MintCertificateNFTResult {
+  tokenId: string;
+  serialNumber: number;
+}
+
+export async function mintCertificateNFT(input: MintCertificateNFTInput): Promise<MintCertificateNFTResult> {
+  const operatorId = process.env.MY_ACCOUNT_ID || process.env.NEXT_PUBLIC_MY_ACCOUNT_ID;
+  const operatorKey = process.env.MY_PRIVATE_KEY || process.env.NEXT_PUBLIC_MY_PRIVATE_KEY;
+  if (!operatorId || !operatorKey) throw new Error('Missing Hedera operator credentials');
+
+  // Use pre-deployed certificate contract
+  const certificateContractId = process.env.CERTIFICATE_CONTRACT_ID || '0.0.6755654';
+  
+  const client = Client.forTestnet().setOperator(operatorId, operatorKey);
+  
+  try {
+    // Mint NFT from pre-deployed certificate contract
+    const mintTx = await new TokenMintTransaction()
+      .setTokenId(TokenId.fromString(certificateContractId))
+      .setMetadata([Buffer.from(input.metadataUrl)])
+      .freezeWith(client)
+      .sign(PrivateKey.fromStringECDSA(operatorKey));
+
+    const mintSubmit = await mintTx.execute(client);
+    const mintRx = await mintSubmit.getReceipt(client);
+    const serials = mintRx.serials ?? [];
+    
+    if (serials.length === 0) {
+      throw new Error('Failed to mint certificate NFT');
+    }
+
+    client.close();
+    
+    return { 
+      tokenId: certificateContractId, 
+      serialNumber: Number(serials[0].toString()) 
+    };
+  } catch (error) {
+    client.close();
+    console.error('Error minting certificate NFT:', error);
+    throw new Error(`Failed to mint certificate NFT: ${error}`);
+  }
+}
+
+export interface SendHbarInput {
+  senderAccountId: string;
+  senderPrivateKey: string;
+  receiverAccountId: string;
+  amount: number; // Amount in HBAR
+  memo?: string;
+}
+
+export interface SendHbarResult {
+  transactionId: string;
+  status: string;
+  hashscanUrl: string;
+}
+
+export async function sendHbar(input: SendHbarInput): Promise<SendHbarResult> {
+  try {
+    const { senderAccountId, senderPrivateKey, receiverAccountId, amount, memo } = input;
+
+    // Validate inputs
+    if (!senderAccountId || !senderPrivateKey || !receiverAccountId || amount <= 0) {
+      throw new Error('Invalid input parameters for HBAR transfer');
+    }
+
+    // Initialize the client for testnet
+    const client = Client.forTestnet()
+      .setOperator(senderAccountId, senderPrivateKey);
+
+    // Create a transaction to transfer HBAR
+    const txTransfer = new TransferTransaction()
+      .addHbarTransfer(AccountId.fromString(senderAccountId), new Hbar(-amount))
+      .addHbarTransfer(AccountId.fromString(receiverAccountId), new Hbar(amount));
+
+    // Add memo if provided
+    if (memo) {
+      txTransfer.setTransactionMemo(memo);
+    }
+
+    // Submit the transaction to a Hedera network
+    const txTransferResponse = await txTransfer.execute(client);
+
+    // Request the receipt of the transaction
+    const receiptTransferTx = await txTransferResponse.getReceipt(client);
+
+    // Get the transaction consensus status
+    const statusTransferTx = receiptTransferTx.status;
+
+    // Get the Transaction ID
+    const txIdTransfer = txTransferResponse.transactionId.toString();
+
+    // Generate HashScan URL
+    const hashscanUrl = `https://hashscan.io/testnet/transaction/${txIdTransfer}`;
+
+    console.log("-------------------------------- Transfer HBAR ------------------------------ ");
+    console.log("Receipt status           :", statusTransferTx.toString());
+    console.log("Transaction ID           :", txIdTransfer);
+    console.log("Hashscan URL             :", hashscanUrl);
+
+    client.close();
+
+    return {
+      transactionId: txIdTransfer,
+      status: statusTransferTx.toString(),
+      hashscanUrl: hashscanUrl
+    };
+  } catch (error) {
+    console.error('Error sending HBAR:', error);
+    if (error instanceof Error) {
+      throw new Error(`HBAR transfer failed: ${error.message}`);
+    }
+    throw new Error('HBAR transfer failed for an unknown reason');
+  }
 }

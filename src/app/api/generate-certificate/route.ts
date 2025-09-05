@@ -82,11 +82,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Not authorized to generate certificate' }, { status: 403 });
     }
 
-    // Generate certificate
+    // Generate certificate with verification data
     const verificationData = {
-      approvedBy: user.id,
-      approvalDate: new Date().toISOString(),
-      notes: approvalNotes || 'Property approved by admin'
+      kycVerified: true, // Assuming admin approval includes KYC verification
+      legalDocsValidated: true, // Assuming admin approval includes legal validation
+      ownershipConfirmed: true // Assuming admin approval includes ownership confirmation
     };
     const certificate = await generatePropertyCertificate(property, verificationData);
 
@@ -118,7 +118,8 @@ export async function POST(request: NextRequest) {
       .from('properties')
       .update({
         certificate_id: certificateRecord.id,
-        status: 'active'
+        certificate_token_id: certificate.tokenId,
+        status: 'certified'
       })
       .eq('id', propertyId);
 

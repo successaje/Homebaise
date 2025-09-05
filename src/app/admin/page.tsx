@@ -149,7 +149,10 @@ export default function AdminPage() {
       
       // check if user has admin role
       // For now, allow any authenticated user to access admin
-      setUser(session.user);
+      setUser({
+        id: session.user.id,
+        email: session.user.email || ''
+      });
       setLoading(false);
     };
 
