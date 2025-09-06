@@ -2,7 +2,46 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { getPropertyById, Property } from '@/data/mockProperties';
+// Define Property interface to match database schema
+interface Property {
+  id: string;
+  name?: string | null;
+  title?: string | null;
+  description?: string | null;
+  location?: string | null;
+  country?: string | null;
+  city?: string | null;
+  address?: string | null;
+  property_type?: string | null;
+  total_value?: number | null;
+  token_price?: number | null;
+  min_investment?: number | null;
+  max_investment?: number | null;
+  funded_amount_usd?: number | null;
+  funded_percent?: number | null;
+  yield_rate?: string | null;
+  status: string;
+  images?: string[] | null;
+  ipfs_image_cids?: string[] | null;
+  investment_highlights?: string[] | null;
+  property_features?: string[] | null;
+  amenities?: string[] | null;
+  investment_risks?: string[] | null;
+  property_details?: {
+    size?: string;
+    legal_status?: string;
+    occupancy_rate?: string;
+    annual_rental_income?: string;
+    appreciation_rate?: string;
+  } | null;
+  property_manager?: string | null;
+  listed_by: string;
+  created_at: string;
+  updated_at: string;
+  certificate_id?: string | null;
+  certificate_token_id?: string | null;
+  certificate_issued_at?: string | null;
+}
 import { formatNumber, formatCurrency, getPropertyTypeLabel, getCountryFlag } from '@/lib/utils';
 import MagneticEffect from '@/components/MagneticEffect';
 import ScrollAnimations from '@/components/ScrollAnimations';
@@ -39,54 +78,72 @@ export default function InvestPage() {
 
   useEffect(() => {
     const init = async () => {
-      // Get property
-      if (params.id) {
-        const foundProperty = getPropertyById(params.id as string);
-        if (foundProperty) {
-          setProperty(foundProperty);
-        } else {
-          router.push('/properties');
+      try {
+        setLoading(true);
+        
+        // Get property from Supabase
+        if (params.id) {
+          const { data: propertyData, error } = await supabase
+            .from('properties')
+            .select('*')
+            .eq('id', params.id)
+            .single();
+            
+          if (error || !propertyData) {
+            console.error('Error fetching property:', error);
+            router.push('/properties');
+            return;
+          }
+          
+          setProperty(propertyData as Property);
+        }
+
+        // Get user session
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          router.push('/auth');
           return;
         }
+        setUser(session.user);
+
+        // Get user profile
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
+        if (profile) {
+          setUserProfile(profile);
+          setForm(prev => ({
+            ...prev,
+            kycVerified: profile.kyc_status === 'verified'
+          }));
+        }
+      } catch (error) {
+        console.error('Error in invest page initialization:', error);
+        router.push('/properties');
+      } finally {
+        setLoading(false);
       }
-
-      // Get user session
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        router.push('/auth');
-        return;
-      }
-      setUser(session.user);
-
-      // Get user profile
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', session.user.id)
-        .single();
-
-      if (profile) {
-        setUserProfile(profile);
-        setForm(prev => ({
-          ...prev,
-          kycVerified: profile.kyc_status === 'verified'
-        }));
-      }
-
-      setLoading(false);
     };
 
     init();
   }, [params.id, router]);
 
   const calculateTokens = (amount: number) => {
-    if (!property) return 0;
-    return Math.floor(amount / property.tokenPriceUSD);
+    if (!property || !property.token_price) return 0;
+    return Math.floor(amount / property.token_price);
   };
 
   const calculateAmount = (tokens: number) => {
-    if (!property) return 0;
-    return tokens * property.tokenPriceUSD;
+    if (!property || !property.token_price) return 0;
+    return tokens * property.token_price;
+  };
+  
+  // Get available tokens or 0 if not available
+  const getAvailableTokens = () => {
+    return property?.tokens_available || 0;
   };
 
   const handleAmountChange = (amount: number) => {
@@ -108,19 +165,32 @@ export default function InvestPage() {
   };
 
   const validateForm = () => {
-    if (!property) return false;
-    
-    if (form.amount < property.minInvestment) {
-      alert(`Minimum investment is ${formatCurrency(property.minInvestment)}`);
+    if (!property) {
+      alert('Property not found');
       return false;
     }
     
-    if (form.amount > property.maxInvestment) {
-      alert(`Maximum investment is ${formatCurrency(property.maxInvestment)}`);
+    const minInvestment = property.min_investment || 0;
+    const maxInvestment = property.max_investment || Infinity;
+    const tokenPrice = property.token_price || 0;
+    const availableTokens = getAvailableTokens();
+    
+    if (form.amount < minInvestment) {
+      alert(`Minimum investment is ${formatCurrency(minInvestment)}`);
       return false;
     }
     
-    if (form.amount > form.tokens * property.tokenPriceUSD) {
+    if (form.amount > maxInvestment) {
+      alert(`Maximum investment is ${formatCurrency(maxInvestment)}`);
+      return false;
+    }
+    
+    if (form.tokens > availableTokens) {
+      alert(`Only ${availableTokens.toLocaleString()} tokens available`);
+      return false;
+    }
+    
+    if (tokenPrice > 0 && form.amount > form.tokens * tokenPrice) {
       alert('Insufficient tokens available');
       return false;
     }
@@ -183,10 +253,23 @@ export default function InvestPage() {
   }
 
   if (!property) {
-    return null;
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-white mb-2">Property Not Found</h2>
+          <p className="text-gray-400 mb-4">The property you're looking for doesn't exist or has been removed.</p>
+          <Link 
+            href="/properties" 
+            className="inline-flex items-center px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+          >
+            Back to Properties
+          </Link>
+        </div>
+      </div>
+    );
   }
 
-  const getPropertyTypeIcon = (type: Property['propertyType']) => {
+  const getPropertyTypeIcon = (type: string | null | undefined) => {
     switch (type) {
       case 'residential':
         return '🏠';
@@ -286,12 +369,12 @@ export default function InvestPage() {
                       value={form.tokens || ''}
                       onChange={(e) => handleTokensChange(Number(e.target.value))}
                       min={1}
-                      max={property.tokensAvailable}
+                      max={getAvailableTokens()}
                       className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                       placeholder="Number of tokens"
                     />
                     <div className="text-sm text-gray-400 mt-2">
-                      Available: {property.tokensAvailable.toLocaleString()} tokens
+                      Available: {getAvailableTokens().toLocaleString()} tokens
                     </div>
                   </div>
 
@@ -433,27 +516,27 @@ export default function InvestPage() {
                   <div className="space-y-3">
                     <div className="flex justify-between items-center">
                       <span className="text-gray-400">Property Type</span>
-                      <span className="text-white">{getPropertyTypeLabel(property.propertyType)}</span>
+                      <span className="text-white">{getPropertyTypeLabel(property.property_type)}</span>
                     </div>
                     
                     <div className="flex justify-between items-center">
                       <span className="text-gray-400">Location</span>
-                      <span className="text-white">{getCountryFlag(property.country)} {property.country}</span>
+                      <span className="text-white">{getCountryFlag(property.country)} {property.city || property.location || 'N/A'}</span>
                     </div>
                     
                     <div className="flex justify-between items-center">
                       <span className="text-gray-400">Total Value</span>
-                      <span className="text-white">{formatNumber(property.totalValueUSD)}</span>
+                      <span className="text-white">{property.total_value ? formatCurrency(property.total_value) : 'N/A'}</span>
                     </div>
                     
                     <div className="flex justify-between items-center">
                       <span className="text-gray-400">Funding Progress</span>
-                      <span className="text-white">{property.fundedPercent}%</span>
+                      <span className="text-white">{property.funded_percent || 0}%</span>
                     </div>
                     
                     <div className="flex justify-between items-center">
                       <span className="text-gray-400">Available Tokens</span>
-                      <span className="text-white">{property.tokensAvailable.toLocaleString()}</span>
+                      <span className="text-white">{getAvailableTokens().toLocaleString()}</span>
                     </div>
                   </div>
                 </div>
@@ -507,12 +590,12 @@ export default function InvestPage() {
         <InvestmentConfirmation
           investment={{
             id: 'mock-investment-id',
-            propertyName: property.name,
+            propertyName: property.name || property.title || 'Property',
             amount: form.amount,
             tokens: form.tokens,
-            tokenPrice: property.tokenPriceUSD,
-            yieldRate: property.yieldRate,
-            expectedMonthlyReturn: form.amount * (parseFloat(property.yieldRate) / 100) / 12,
+            tokenPrice: property.token_price || 0,
+            yieldRate: property.yield_rate || '0',
+            expectedMonthlyReturn: form.amount * (parseFloat(property.yield_rate || '0') / 100) / 12,
             transactionId: 'tx_' + Math.random().toString(36).substr(2, 9),
             investedAt: new Date().toISOString(),
           }}

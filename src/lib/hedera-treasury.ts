@@ -297,11 +297,36 @@ export async function getAccountBalance(
   accountId: string
 ): Promise<Hbar> {
   try {
-    const account = AccountId.fromString(accountId);
-    const balance = await client.getAccountBalance(account);
+    const balance = await new AccountBalanceQuery()
+      .setAccountId(accountId)
+      .execute(client);
+    
     return balance.hbars;
   } catch (error) {
-    console.error("Error getting account balance:", error);
-    throw new Error(`Failed to get account balance: ${error}`);
+    console.error('Error fetching account balance:', error);
+    throw new Error(`Failed to fetch account balance: ${error}`);
   }
-} 
+}
+
+/**
+ * Get the token balance for a property from the property_treasury_accounts table
+ */
+export async function getPropertyTokenBalance(propertyId: string): Promise<number | null> {
+  try {
+    const { data, error } = await supabase
+      .from('property_treasury_accounts')
+      .select('token_balance')
+      .eq('property_id', propertyId)
+      .single();
+
+    if (error || !data) {
+      console.error('Error fetching token balance:', error);
+      return null;
+    }
+
+    return data.token_balance || 0;
+  } catch (error) {
+    console.error('Error in getPropertyTokenBalance:', error);
+    return null;
+  }
+}

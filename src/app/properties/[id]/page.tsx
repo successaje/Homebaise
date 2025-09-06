@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { formatNumber, formatCurrency, formatDate, getPropertyTypeLabel, getCountryFlag } from '@/lib/utils';
+import { getPropertyTokenBalance } from '@/lib/hedera-treasury';
 import MagneticEffect from '@/components/MagneticEffect';
 import ScrollAnimations from '@/components/ScrollAnimations';
 import PropertyCertificate from '@/components/PropertyCertificate';
@@ -60,6 +61,7 @@ interface Property {
   certificate_id?: string | null;
   certificate_token_id?: string | null;
   certificate_issued_at?: string | null;
+  tokens_available?: number | null;
 }
 
 const PropertyDetailPage = () => {
@@ -161,15 +163,7 @@ const PropertyDetailPage = () => {
         setLoading(true);
         console.log('Fetching property with ID:', params.id);
         
-        // Debug: List all properties to see what's available
-        const { data: allProperties, error: listError } = await supabase
-          .from('properties')
-          .select('id, name, title')
-          .limit(5);
-        
-        console.log('Available properties (first 5):', allProperties);
-        if (listError) console.log('Error listing properties:', listError);
-        
+        // Fetch property data
         const { data, error } = await supabase
           .from('properties')
           .select('*')
@@ -187,41 +181,45 @@ const PropertyDetailPage = () => {
 
         if (data) {
           console.log('Property data received:', data);
-          setProperty(data);
           
-          // Fetch token_id from property_treasury_account table
+          // Fetch token balance and treasury data
           try {
-            const { data: treasuryData, error: treasuryError } = await supabase
-              .from('property_treasury_accounts')
-              .select('token_id')
-              .eq('property_id', data.id)
-              .single();
+            const [
+              { data: treasuryData, error: treasuryError },
+              tokenBalance
+            ] = await Promise.all([
+              supabase
+                .from('property_treasury_accounts')
+                .select('token_id, token_balance')
+                .eq('property_id', data.id)
+                .single(),
+              getPropertyTokenBalance(data.id)
+            ]);
+            
+            // Update property with token data
+            const updatedProperty = {
+              ...data,
+              tokens_available: tokenBalance,
+              token_id: treasuryData?.token_id || null
+            };
+            
+            setProperty(updatedProperty);
+            setTokenId(treasuryData?.token_id || null);
             
             if (treasuryError) {
               console.log('No treasury account found for property:', treasuryError.message);
-            } else {
-              console.log('Treasury data received:', treasuryData);
-              setTokenId(treasuryData?.token_id || null);
             }
-          } catch (treasuryErr) {
-            console.error('Error fetching treasury data:', treasuryErr);
+          } catch (error) {
+            console.error('Error fetching token balance or treasury data:', error);
           }
-        } else {
-          console.log('No property data received');
-          toast.error('Property not found');
-          router.push('/properties');
         }
-      } catch (err) {
-        console.error('Unexpected error:', err);
-        toast.error('Failed to load property');
-        router.push('/properties');
       } finally {
         setLoading(false);
       }
     };
 
     fetchProperty();
-  }, [params.id, router, supabase]);
+  }, [params.id, router]);
 
   // Check authentication status
   useEffect(() => {
