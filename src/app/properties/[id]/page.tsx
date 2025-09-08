@@ -10,6 +10,7 @@ import PropertyCertificate from '@/components/PropertyCertificate';
 import Link from 'next/link';
 import { createClient } from '@supabase/supabase-js';
 import { toast } from 'react-hot-toast';
+import { Property } from '@/types/property';
 
 // Initialize Supabase client outside component
 const supabase = createClient(
@@ -20,48 +21,6 @@ const supabase = createClient(
 // Check if environment variables are loaded
 if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
   console.error('Missing Supabase environment variables');
-}
-
-// Updated interface to match database schema
-interface Property {
-  id: string;
-  name?: string | null;
-  title?: string | null;
-  description?: string | null;
-  location?: string | null;
-  country?: string | null;
-  city?: string | null;
-  address?: string | null;
-  property_type?: string | null;
-  total_value?: number | null;
-  token_price?: number | null;
-  min_investment?: number | null;
-  max_investment?: number | null;
-  funded_amount_usd?: number | null;
-  funded_percent?: number | null;
-  yield_rate?: string | null;
-  status: string;
-  images?: string[] | null;
-  ipfs_image_cids?: string[] | null;
-  investment_highlights?: string[] | null;
-  property_features?: string[] | null;
-  amenities?: string[] | null;
-  investment_risks?: string[] | null;
-  property_details?: {
-    size?: string;
-    legal_status?: string;
-    occupancy_rate?: string;
-    annual_rental_income?: string;
-    appreciation_rate?: string;
-  } | null;
-  property_manager?: string | null;
-  listed_by: string;
-  created_at: string;
-  updated_at: string;
-  certificate_id?: string | null;
-  certificate_token_id?: string | null;
-  certificate_issued_at?: string | null;
-  tokens_available?: number | null;
 }
 
 const PropertyDetailPage = () => {
@@ -562,11 +521,7 @@ const PropertyDetailPage = () => {
                     
                     <div className="flex justify-between items-center">
                       <span className="text-gray-400">Token Price</span>
-                      <span className="text-white font-semibold">
-                        {property.token_price !== null && property.token_price !== undefined 
-                          ? formatCurrency(property.token_price) 
-                          : 'N/A'}
-                      </span>
+                      <span className="text-white font-semibold">$1.00 (1:1 ratio)</span>
                     </div>
                     
                     <div className="flex justify-between items-center">
@@ -586,11 +541,16 @@ const PropertyDetailPage = () => {
                     </div>
                     
                     <div className="flex justify-between items-center">
+                      <span className="text-gray-400">Total Tokens</span>
+                      <span className="text-white font-semibold">
+                        {property.total_value ? property.total_value.toLocaleString() : 'N/A'}
+                      </span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center">
                       <span className="text-gray-400">Available Tokens</span>
                       <span className="text-white font-semibold">
-                        {property.total_value && property.token_price 
-                          ? Math.floor(property.total_value / property.token_price) 
-                          : 'N/A'}
+                        {property.tokens_available ? property.tokens_available.toLocaleString() : 'N/A'}
                       </span>
                     </div>
                   </div>
@@ -707,7 +667,7 @@ const PropertyDetailPage = () => {
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-gray-400">Token Price</span>
-                        <span className="text-white">{property.token_price ? formatCurrency(property.token_price) : 'N/A'}</span>
+                        <span className="text-white">$1.00 (1:1 ratio)</span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-gray-400">Min Investment</span>

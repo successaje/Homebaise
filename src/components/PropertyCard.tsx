@@ -3,49 +3,7 @@
 import Link from 'next/link';
 import MagneticEffect from './MagneticEffect';
 import { formatCurrency, getPropertyTypeLabel } from '@/lib/utils';
-
-// Database Property interface
-interface Property {
-  id: string;
-  title?: string | null;
-  name: string | null;
-  description: string | null;
-  location: string | null;
-  property_type: string | null;
-  total_value: number | null;
-  funded_amount_usd: number | null;
-  funded_percent: number | null;
-  yield_rate: string | null;
-  status: string;
-  images: string[] | null;
-  ipfs_image_cids?: string[] | null;
-  created_at: string;
-  updated_at: string;
-  token_id: string | null;
-  token_symbol: string | null;
-  token_name: string | null;
-  token_decimals: number | null;
-  token_type: 'FUNGIBLE' | 'NON_FUNGIBLE' | null;
-  treasury_account_id: string | null;
-  treasury_private_key: string | null;
-  is_tokenized?: boolean;
-  // Additional fields from schema updates
-  certificate_token_id?: string | null;
-  certificate_number?: string | null;
-  certificate_metadata_url?: string | null;
-  certificate_issued_at?: string | null;
-  investment_highlights?: string[] | null;
-  property_features?: string[] | null;
-  amenities?: string[] | null;
-  investment_risks?: string[] | null;
-  property_size?: string | null;
-  legal_status?: string | null;
-  occupancy_rate?: number | null;
-  annual_rental_income?: number | null;
-  appreciation_rate?: number | null;
-  property_manager?: string | null;
-  listed_by: string;
-}
+import { Property } from '@/types/property';
 
 interface PropertyCardProps {
   property: Property;
@@ -165,7 +123,7 @@ export default function PropertyCard({ property, className = '' }: PropertyCardP
               />
             ) : (
               <div className="w-full h-full bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center">
-                <span className="text-4xl">{getPropertyTypeIcon(property.property_type)}</span>
+                <span className="text-4xl">{getPropertyTypeIcon(property.property_type || null)}</span>
               </div>
             )}
             <div className="absolute top-3 left-3">
@@ -201,7 +159,7 @@ export default function PropertyCard({ property, className = '' }: PropertyCardP
                   {property.location || 'Location not specified'}
                 </p>
               </div>
-              <span className="text-2xl ml-2">{getPropertyTypeIcon(property.property_type)}</span>
+              <span className="text-2xl ml-2">{getPropertyTypeIcon(property.property_type || null)}</span>
             </div>
 
             {/* Description */}

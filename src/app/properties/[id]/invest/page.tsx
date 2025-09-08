@@ -2,46 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-// Define Property interface to match database schema
-interface Property {
-  id: string;
-  name?: string | null;
-  title?: string | null;
-  description?: string | null;
-  location?: string | null;
-  country?: string | null;
-  city?: string | null;
-  address?: string | null;
-  property_type?: string | null;
-  total_value?: number | null;
-  token_price?: number | null;
-  min_investment?: number | null;
-  max_investment?: number | null;
-  funded_amount_usd?: number | null;
-  funded_percent?: number | null;
-  yield_rate?: string | null;
-  status: string;
-  images?: string[] | null;
-  ipfs_image_cids?: string[] | null;
-  investment_highlights?: string[] | null;
-  property_features?: string[] | null;
-  amenities?: string[] | null;
-  investment_risks?: string[] | null;
-  property_details?: {
-    size?: string;
-    legal_status?: string;
-    occupancy_rate?: string;
-    annual_rental_income?: string;
-    appreciation_rate?: string;
-  } | null;
-  property_manager?: string | null;
-  listed_by: string;
-  created_at: string;
-  updated_at: string;
-  certificate_id?: string | null;
-  certificate_token_id?: string | null;
-  certificate_issued_at?: string | null;
-}
+import { Property } from '@/types/property';
 import { formatNumber, formatCurrency, getPropertyTypeLabel, getCountryFlag } from '@/lib/utils';
 import MagneticEffect from '@/components/MagneticEffect';
 import ScrollAnimations from '@/components/ScrollAnimations';
@@ -49,6 +10,7 @@ import InvestmentConfirmation from '@/components/InvestmentConfirmation';
 import PaymentProcessor from '@/components/PaymentProcessor';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import { InvestmentService } from '@/lib/investment';
 
 interface InvestmentForm {
   amount: number;
@@ -68,6 +30,7 @@ export default function InvestPage() {
   const [showPaymentProcessor, setShowPaymentProcessor] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
+  const [availableTokens, setAvailableTokens] = useState<number>(0);
   const [form, setForm] = useState<InvestmentForm>({
     amount: 0,
     tokens: 0,
@@ -96,6 +59,15 @@ export default function InvestPage() {
           }
           
           setProperty(propertyData as Property);
+          
+          // Get available tokens from treasury account balance
+          try {
+            const tokens = await InvestmentService.getAvailableTokens(propertyData.id);
+            setAvailableTokens(tokens);
+          } catch (error) {
+            console.error('Error fetching available tokens from treasury:', error);
+            setAvailableTokens(0);
+          }
         }
 
         // Get user session
@@ -132,18 +104,30 @@ export default function InvestPage() {
   }, [params.id, router]);
 
   const calculateTokens = (amount: number) => {
-    if (!property || !property.token_price) return 0;
-    return Math.floor(amount / property.token_price);
+    // 1:1 ratio - $1 = 1 token
+    return amount;
   };
 
   const calculateAmount = (tokens: number) => {
-    if (!property || !property.token_price) return 0;
-    return tokens * property.token_price;
+    // 1:1 ratio - 1 token = $1
+    return tokens;
   };
   
   // Get available tokens or 0 if not available
-  const getAvailableTokens = () => {
-    return property?.tokens_available || 0;
+  const getAvailableTokens = async () => {
+    if (!property) return 0;
+    try {
+      return await InvestmentService.getAvailableTokens(property.id);
+    } catch (error) {
+      console.error('Error fetching available tokens:', error);
+      // Fallback calculation
+      if (property.total_value && property.token_price) {
+        const totalTokens = Math.floor(property.total_value / property.token_price);
+        const soldTokens = Math.floor((property.funded_amount_usd || 0) / property.token_price);
+        return Math.max(0, totalTokens - soldTokens);
+      }
+      return 0;
+    }
   };
 
   const handleAmountChange = (amount: number) => {
@@ -164,34 +148,27 @@ export default function InvestPage() {
     }));
   };
 
-  const validateForm = () => {
+  const validateForm = async () => {
     if (!property) {
       alert('Property not found');
       return false;
     }
     
-    const minInvestment = property.min_investment || 0;
-    const maxInvestment = property.max_investment || Infinity;
-    const tokenPrice = property.token_price || 0;
-    const availableTokens = getAvailableTokens();
+    // Use InvestmentService validation
+    const validation = InvestmentService.validateInvestment(
+      form.amount,
+      form.tokens,
+      property
+    );
     
-    if (form.amount < minInvestment) {
-      alert(`Minimum investment is ${formatCurrency(minInvestment)}`);
+    if (!validation.valid) {
+      alert(validation.error);
       return false;
     }
     
-    if (form.amount > maxInvestment) {
-      alert(`Maximum investment is ${formatCurrency(maxInvestment)}`);
-      return false;
-    }
-    
+    // Check available tokens
     if (form.tokens > availableTokens) {
       alert(`Only ${availableTokens.toLocaleString()} tokens available`);
-      return false;
-    }
-    
-    if (tokenPrice > 0 && form.amount > form.tokens * tokenPrice) {
-      alert('Insufficient tokens available');
       return false;
     }
     
@@ -209,7 +186,8 @@ export default function InvestPage() {
   };
 
   const handleInvest = async () => {
-    if (!validateForm()) return;
+    const isValid = await validateForm();
+    if (!isValid) return;
     
     setShowPaymentProcessor(true);
   };
@@ -219,16 +197,32 @@ export default function InvestPage() {
     setInvesting(true);
     
     try {
-      // Simulate investment processing
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      if (!property || !user) {
+        throw new Error('Missing property or user data');
+      }
+
+      // Create investment record
+      const investmentData = {
+        property_id: property.id,
+        amount: form.amount,
+        tokens_purchased: form.tokens,
+        token_price: 1, // 1:1 ratio - $1 = 1 token
+        transaction_hash: transactionId,
+        status: 'pending' as const
+      };
+
+      const investment = await InvestmentService.createInvestment(investmentData);
       
-      // In a real app, this would:
-      // 1. Create investment record in database
-      // 2. Update property token availability
-      // 3. Send confirmation email
+      // Complete the investment
+      await InvestmentService.updateInvestmentStatus(
+        investment.id,
+        'completed',
+        transactionId
+      );
       
       setShowConfirmation(true);
     } catch (error) {
+      console.error('Investment failed:', error);
       alert('Investment failed. Please try again.');
     } finally {
       setInvesting(false);
@@ -321,9 +315,9 @@ export default function InvestPage() {
               </div>
               
               <div className="flex items-center space-x-4">
-                <span className="text-4xl">{getPropertyTypeIcon(property.propertyType)}</span>
+                <span className="text-4xl">{getPropertyTypeIcon(property.property_type)}</span>
                 <div>
-                  <h1 className="text-3xl font-bold text-white mb-1">Invest in {property.name}</h1>
+                  <h1 className="text-3xl font-bold text-white mb-1">Invest in {property.name || property.title}</h1>
                   <p className="text-gray-400 flex items-center">
                     <span className="mr-2">📍</span>
                     {property.location}
@@ -347,15 +341,15 @@ export default function InvestPage() {
                       type="number"
                       value={form.amount || ''}
                       onChange={(e) => handleAmountChange(Number(e.target.value))}
-                      min={property.minInvestment}
-                      max={property.maxInvestment}
-                      step={property.tokenPriceUSD}
+                      min={property.min_investment || 0}
+                      max={property.max_investment || Infinity}
+                      step={1}
                       className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                      placeholder={`Min: ${formatCurrency(property.minInvestment)}`}
+                      placeholder={`Min: ${formatCurrency(property.min_investment || 0)}`}
                     />
                     <div className="flex justify-between text-sm text-gray-400 mt-2">
-                      <span>Min: {formatCurrency(property.minInvestment)}</span>
-                      <span>Max: {formatCurrency(property.maxInvestment)}</span>
+                      <span>Min: {formatCurrency(property.min_investment || 0)}</span>
+                      <span>Max: {formatCurrency(property.max_investment || Infinity)}</span>
                     </div>
                   </div>
 
@@ -369,12 +363,12 @@ export default function InvestPage() {
                       value={form.tokens || ''}
                       onChange={(e) => handleTokensChange(Number(e.target.value))}
                       min={1}
-                      max={getAvailableTokens()}
+                      max={availableTokens}
                       className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                       placeholder="Number of tokens"
                     />
                     <div className="text-sm text-gray-400 mt-2">
-                      Available: {getAvailableTokens().toLocaleString()} tokens
+                      Available: {availableTokens.toLocaleString()} tokens
                     </div>
                   </div>
 
@@ -481,18 +475,18 @@ export default function InvestPage() {
                     
                     <div className="flex justify-between items-center">
                       <span className="text-gray-400">Token Price</span>
-                      <span className="text-white font-semibold">{formatCurrency(property.tokenPriceUSD)}</span>
+                      <span className="text-white font-semibold">$1.00 (1:1 ratio)</span>
                     </div>
                     
                     <div className="flex justify-between items-center">
                       <span className="text-gray-400">Expected Annual Yield</span>
-                      <span className="text-emerald-400 font-semibold">{property.yieldRate}</span>
+                      <span className="text-emerald-400 font-semibold">{property.yield_rate || 'N/A'}</span>
                     </div>
                     
                     <div className="flex justify-between items-center">
                       <span className="text-gray-400">Expected Annual Return</span>
                       <span className="text-emerald-400 font-semibold">
-                        {formatCurrency(form.amount * (parseFloat(property.yieldRate) / 100))}
+                        {property.yield_rate ? formatCurrency(form.amount * (parseFloat(property.yield_rate) / 100)) : 'N/A'}
                       </span>
                     </div>
                   </div>
@@ -535,8 +529,13 @@ export default function InvestPage() {
                     </div>
                     
                     <div className="flex justify-between items-center">
+                      <span className="text-gray-400">Total Tokens</span>
+                      <span className="text-white">{property.total_value ? property.total_value.toLocaleString() : 'N/A'}</span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center">
                       <span className="text-gray-400">Available Tokens</span>
-                      <span className="text-white">{getAvailableTokens().toLocaleString()}</span>
+                      <span className="text-white">{availableTokens.toLocaleString()}</span>
                     </div>
                   </div>
                 </div>
