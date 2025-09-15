@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 import { CreateInvestmentInput, Investment, InvestmentSummary, InvestorPortfolioItem } from '@/types/investment';
 import { Property } from '@/types/property';
 import { getPropertyTokenBalance } from './hedera-treasury';
+import { executePropertyInvestment } from './investment-flow';
 
 export class InvestmentService {
   /**
@@ -310,5 +311,88 @@ export class InvestmentService {
     });
 
     return stats;
+  }
+
+  /**
+   * Execute complete investment flow with Hedera SDK
+   */
+  static async executeInvestment(
+    propertyId: string,
+    investorId: string,
+    amount: number
+  ): Promise<{
+    success: boolean;
+    investment?: Investment;
+    transactionHash?: string;
+    error?: string;
+  }> {
+    return await executePropertyInvestment(propertyId, investorId, amount);
+  }
+
+  /**
+   * Fetch investor portfolio via API
+   */
+  static async fetchPortfolio(userId: string): Promise<{
+    portfolio: InvestorPortfolioItem[];
+    summary: {
+      totalInvested: number;
+      totalTokens: number;
+      totalEarnings: number;
+      activeInvestments: number;
+      completedInvestments: number;
+    };
+  }> {
+    try {
+      const response = await fetch('/api/portfolio', {
+        headers: {
+          'Authorization': `Bearer ${await this.getAuthToken()}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch portfolio: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching portfolio:', error);
+      return {
+        portfolio: [],
+        summary: {
+          totalInvested: 0,
+          totalTokens: 0,
+          totalEarnings: 0,
+          activeInvestments: 0,
+          completedInvestments: 0
+        }
+      };
+    }
+  }
+
+  /**
+   * Fetch property investment summary via API
+   */
+  static async fetchPropertyInvestmentSummary(propertyId: string): Promise<InvestmentSummary | null> {
+    try {
+      const response = await fetch(`/api/properties/${propertyId}/investment-summary`);
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch investment summary: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data.summary;
+    } catch (error) {
+      console.error('Error fetching investment summary:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get authentication token for API calls
+   */
+  private static async getAuthToken(): Promise<string> {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token || '';
   }
 }

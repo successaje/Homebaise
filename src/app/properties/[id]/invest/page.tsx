@@ -201,29 +201,25 @@ export default function InvestPage() {
         throw new Error('Missing property or user data');
       }
 
-      // Create investment record
-      const investmentData = {
-        property_id: property.id,
-        amount: form.amount,
-        tokens_purchased: form.tokens,
-        token_price: 1, // 1:1 ratio - $1 = 1 token
-        transaction_hash: transactionId,
-        status: 'pending' as const
-      };
-
-      const investment = await InvestmentService.createInvestment(investmentData);
-      
-      // Complete the investment
-      await InvestmentService.updateInvestmentStatus(
-        investment.id,
-        'completed',
-        transactionId
+      // Execute complete investment flow with Hedera SDK
+      const result = await InvestmentService.executeInvestment(
+        property.id,
+        user.id,
+        form.amount
       );
+
+      if (!result.success) {
+        throw new Error(result.error || 'Investment failed');
+      }
+
+      // Refresh available tokens
+      const newAvailableTokens = await InvestmentService.getAvailableTokens(property.id);
+      setAvailableTokens(newAvailableTokens);
       
       setShowConfirmation(true);
     } catch (error) {
       console.error('Investment failed:', error);
-      alert('Investment failed. Please try again.');
+      alert(`Investment failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setInvesting(false);
     }

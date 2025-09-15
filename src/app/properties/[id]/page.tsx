@@ -381,7 +381,7 @@ const PropertyDetailPage = () => {
                     <div className="flex justify-between items-center">
                       <span className="text-gray-400">Property Size</span>
                       <span className="text-white">
-                        {property.property_details?.size || 'N/A'}
+                        {property.property_details?.property_size || 'N/A'}
                       </span>
                     </div>
                     

@@ -294,6 +294,7 @@ export async function POST(request: NextRequest) {
           token_id: tokenResult.tokenId,
           token_type: tokenType,
           initial_balance_hbar: Number(treasuryAccount.initialBalance.toTinybars()) / 1e8,
+          token_balance: tokenType === 'NON_FUNGIBLE' ? 1 : (tokenResult as any).totalSupply || 0,
           status: 'active',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()

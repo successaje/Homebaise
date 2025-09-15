@@ -55,7 +55,7 @@ export interface Property {
   
   // Property details object
   property_details?: {
-    size?: string;
+    property_size?: string;
     legal_status?: string;
     occupancy_rate?: string;
     annual_rental_income?: string;
