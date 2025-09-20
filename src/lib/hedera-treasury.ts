@@ -313,6 +313,34 @@ export async function getAccountBalance(
 }
 
 /**
+ * Get the actual fungibletoken balance for a property from the property_treasury_accounts table
+ */
+export async function getPropertyFungibleTokenBalance(propertyId: string): Promise<number | null> {
+  try {
+    const {data, error } = await supabase
+      .from('property_treasury_accounts')
+      .select('token_balance')
+      .eq('property_id', propertyId)
+      .single();
+
+      if (error){
+        console.log("Error fetching property fungible token balance", error);
+        return null;
+      }
+
+      if (!data){
+        console.log("No data found for property's funginle token balance", propertyId);
+        return null;
+      }
+      console.log("Property's fungible token balance", data.token_balance);
+      return data.token_balance;
+  } catch (error) {
+    console.error('Error fetching property fungible token balance:', error);
+    throw new Error(`Failed to fetch property fungible token balance: ${error}`);
+  }
+}
+
+/**
  * Get the token balance for a property from the property_treasury_accounts table
  */
 export async function getPropertyTokenBalance(propertyId: string): Promise<number | null> {

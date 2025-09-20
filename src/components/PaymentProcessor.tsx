@@ -187,8 +187,8 @@ export default function PaymentProcessor({
               <h4 className="text-emerald-400 font-semibold mb-2">Crypto Payment Details</h4>
               <div className="text-sm text-gray-300 space-y-1">
                 <p>Amount: {formatCurrency(amount)}</p>
-                <p>Supported: BTC, ETH, USDT, USDC</p>
-                <p>Network: Ethereum, Polygon, BSC</p>
+                <p>Currently Supported: HBAR</p>
+                <p>Current Network: Testnet</p>
                 <p>Transaction will be processed automatically</p>
               </div>
             </div>

@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 import { CreateInvestmentInput, Investment, InvestmentSummary, InvestorPortfolioItem } from '@/types/investment';
 import { Property } from '@/types/property';
-import { getPropertyTokenBalance } from './hedera-treasury';
+import { getPropertyTokenBalance, getPropertyFungibleTokenBalance } from './hedera-treasury';
 import { executePropertyInvestment } from './investment-flow';
 
 export class InvestmentService {
@@ -175,7 +175,7 @@ export class InvestmentService {
    */
   static async getAvailableTokens(propertyId: string): Promise<number> {
     try {
-      const balance = await getPropertyTokenBalance(propertyId);
+      const balance = await getPropertyFungibleTokenBalance(propertyId);
       return balance || 0;
     } catch (error) {
       console.error('Error fetching available tokens from treasury:', error);

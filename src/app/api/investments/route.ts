@@ -140,8 +140,8 @@ export async function POST(request: NextRequest) {
 
     // Check available tokens
     const { data: investmentDetails } = await supabase
-      .from('property_investment_details')
-      .select('tokens_available')
+      .from('property_treasury_accounts')
+      .select('token_balance')
       .eq('property_id', property_id)
       .single();
 
