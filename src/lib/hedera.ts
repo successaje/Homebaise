@@ -266,6 +266,14 @@ export interface SendHbarResult {
   hashscanUrl: string;
 }
 
+export interface PurchaseTokenInput {
+  senderPrivateKey : string;
+  receiverAccountId: string;
+  propertyId: string;
+  amount: number;
+  memo?: string;
+}
+
 export async function sendHbar(input: SendHbarInput): Promise<SendHbarResult> {
   try {
     const { senderAccountId, senderPrivateKey, receiverAccountId, amount, memo } = input;
@@ -323,4 +331,142 @@ export async function sendHbar(input: SendHbarInput): Promise<SendHbarResult> {
     }
     throw new Error('HBAR transfer failed for an unknown reason');
   }
+}
+
+// --------- NEW HELPERS FOR INVEST FLOW ---------
+
+export async function getHbarUsdPrice(): Promise<number> {
+  try {
+    const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=hedera-hashgraph&vs_currencies=usd', {
+      // Avoid cache to get fresh pricing
+      cache: 'no-store'
+    });
+    const data = await res.json().catch(() => ({} as any));
+    const price = data?.['hedera-hashgraph']?.usd;
+    if (typeof price === 'number' && price > 0) return price;
+  } catch {}
+  // Sensible fallback if API unavailable
+  return 0.1; // $0.10/HBAR fallback
+}
+
+export interface EnsureAssociationInput {
+  client: Client;
+  userAccountId: string;
+  userPrivateKey: string;
+  tokenId: string;
+}
+
+export async function ensureTokenAssociation({ client, userAccountId, userPrivateKey, tokenId }: EnsureAssociationInput): Promise<void> {
+  // Attempt to associate token. If already associated, Hedera returns an error; we swallow it for idempotency.
+  try {
+    const tx = await new TokenAssociateTransaction()
+      .setAccountId(AccountId.fromString(userAccountId))
+      .setTokenIds([TokenId.fromString(tokenId)])
+      .freezeWith(client)
+      .sign(PrivateKey.fromString(userPrivateKey));
+    const resp = await tx.execute(client);
+    await resp.getReceipt(client);
+  } catch (err) {
+    const msg = String(err);
+    // If association already exists, ignore
+    if (!/is already associated|TOKEN_ALREADY_ASSOCIATED/i.test(msg)) {
+      throw err;
+    }
+  }
+}
+
+export interface TransferFungibleInput {
+  client: Client;
+  tokenId: string;
+  fromAccountId: string;
+  fromPrivateKey: string;
+  toAccountId: string;
+  // Amount in the token's smallest units (integer)
+  amountTiny: number | bigint;
+  memo?: string;
+}
+
+export async function transferFungible({ client, tokenId, fromAccountId, fromPrivateKey, toAccountId, amountTiny, memo }: TransferFungibleInput): Promise<string> {
+  // Convert to number if it's a bigint for compatibility with Hedera SDK
+  const amount = typeof amountTiny === 'bigint' ? Number(amountTiny) : amountTiny;
+  
+  const tx = new TransferTransaction()
+    .addTokenTransfer(TokenId.fromString(tokenId), AccountId.fromString(fromAccountId), -amount)
+    .addTokenTransfer(TokenId.fromString(tokenId), AccountId.fromString(toAccountId), amount);
+  if (memo) tx.setTransactionMemo(memo);
+
+  const signed = await tx.freezeWith(client).sign(PrivateKey.fromString(fromPrivateKey));
+  const resp = await signed.execute(client);
+  const receipt = await resp.getReceipt(client);
+  if (!receipt.status) throw new Error('Token transfer failed');
+  return resp.transactionId.toString();
+}
+
+export interface TransferHbarInput {
+  client: Client;
+  fromAccountId: string;
+  fromPrivateKey: string;
+  toAccountId: string;
+  hbarAmount: number; // in HBAR
+  memo?: string;
+}
+
+export async function transferHbar({ client, fromAccountId, fromPrivateKey, toAccountId, hbarAmount, memo }: TransferHbarInput): Promise<string> {
+  const tx = new TransferTransaction()
+    .addHbarTransfer(AccountId.fromString(fromAccountId), new Hbar(-hbarAmount))
+    .addHbarTransfer(AccountId.fromString(toAccountId), new Hbar(hbarAmount));
+  if (memo) tx.setTransactionMemo(memo);
+
+  const signed = await tx.freezeWith(client).sign(PrivateKey.fromString(fromPrivateKey));
+  const resp = await signed.execute(client);
+  const receipt = await resp.getReceipt(client);
+  if (!receipt.status) throw new Error('HBAR transfer failed');
+  return resp.transactionId.toString();
+}
+
+/**
+ * Purchase property tokens - ensures token association and transfers tokens from treasury to buyer
+ * This is the complete flow for buying property tokens
+ */
+export interface PurchasePropertyTokenInput {
+  client: Client;
+  treasuryAccountId: string;
+  treasuryPrivateKey: string;
+  buyerAccountId: string;
+  buyerPrivateKey: string;
+  tokenId: string;
+  amount: number;
+  memo?: string;
+}
+
+export async function purchasePropertyToken({
+  client,
+  treasuryAccountId,
+  treasuryPrivateKey,
+  buyerAccountId,
+  buyerPrivateKey,
+  tokenId,
+  amount,
+  memo
+}: PurchasePropertyTokenInput): Promise<string> {
+  // Step 1: Ensure buyer is associated with the token
+  await ensureTokenAssociation({
+    client,
+    userAccountId: buyerAccountId,
+    userPrivateKey: buyerPrivateKey,
+    tokenId
+  });
+
+  // Step 2: Transfer tokens from treasury to buyer
+  const txId = await transferFungible({
+    client,
+    tokenId,
+    fromAccountId: treasuryAccountId,
+    fromPrivateKey: treasuryPrivateKey,
+    toAccountId: buyerAccountId,
+    amountTiny: amount,
+    memo
+  });
+
+  return txId;
 }

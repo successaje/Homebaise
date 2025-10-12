@@ -219,7 +219,8 @@ export class InvestmentService {
    */
   static calculateAmount(tokens: number): number {
     // 1:1 ratio - 1 token = $1
-    return tokens;
+    return tokens; // An update might come later where the calculations is a little bit different and complex
+    
   }
 
   /**

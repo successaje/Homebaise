@@ -1,4 +1,4 @@
-import { Client, PrivateKey, AccountId, TokenId, TransferTransaction, Hbar } from '@hashgraph/sdk';
+import { Client, PrivateKey, AccountId, TokenId, TransferTransaction, TokenAssociateTransaction, Hbar } from '@hashgraph/sdk';
 import { supabase } from './supabase';
 import { Property } from '@/types/property';
 import { CreateInvestmentInput, Investment } from '@/types/investment';
@@ -115,6 +115,7 @@ export class InvestmentFlow {
           treasuryInfo.hedera_account_id,
           treasuryInfo.hedera_private_key,
           investorInfo.hedera_account_id!,
+          investorInfo.hedera_private_key!,
           treasuryInfo.token_id,
           tokensToPurchase
         );
@@ -273,11 +274,13 @@ export class InvestmentFlow {
 
   /**
    * Transfer tokens from treasury to investor using Hedera SDK
+   * This method ensures token association before transfer
    */
   private async transferTokens(
     fromAccountId: string,
     fromPrivateKey: string,
     toAccountId: string,
+    toPrivateKey: string,
     tokenId: string,
     amount: number
   ): Promise<string> {
@@ -286,22 +289,58 @@ export class InvestmentFlow {
       const fromAccount = AccountId.fromString(fromAccountId);
       const toAccount = AccountId.fromString(toAccountId);
       const fromKey = PrivateKey.fromString(fromPrivateKey);
+      const toKey = PrivateKey.fromString(toPrivateKey);
 
-      // Create transfer transaction
-      const transaction = new TransferTransaction()
+      console.log(`Starting token transfer: ${amount} tokens from ${fromAccountId} to ${toAccountId}`);
+      
+      // Step 1: Ensure investor account is associated with the token
+      // This is CRITICAL - Hedera requires accounts to be associated with tokens before receiving them
+      try {
+        console.log(`Ensuring token association for account ${toAccountId} with token ${tokenId}`);
+        const associateTx = await new TokenAssociateTransaction()
+          .setAccountId(toAccount)
+          .setTokenIds([token])
+          .freezeWith(this.client)
+          .sign(toKey);
+        
+        const associateResponse = await associateTx.execute(this.client);
+        await associateResponse.getReceipt(this.client);
+        console.log(`Token association successful for ${toAccountId}`);
+      } catch (associateError: any) {
+        const errorMsg = String(associateError);
+        // If token is already associated, that's fine - continue with transfer
+        if (!/already associated|TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT/i.test(errorMsg)) {
+          console.error('Token association error:', associateError);
+          throw new Error(`Failed to associate token with investor account: ${associateError.message}`);
+        }
+        console.log(`Token already associated for ${toAccountId} - continuing with transfer`);
+      }
+
+      // Step 2: Create and execute token transfer transaction
+      console.log(`Creating token transfer transaction`);
+      const transferTx = new TransferTransaction()
         .addTokenTransfer(token, fromAccount, -amount) // From treasury (negative)
         .addTokenTransfer(token, toAccount, amount)    // To investor (positive)
         .setMaxTransactionFee(new Hbar(5));
 
-      // Sign with treasury private key
-      const signedTransaction = await transaction.sign(fromKey);
+      // Freeze the transaction with the client before signing
+      const frozenTx = await transferTx.freezeWith(this.client);
+      
+      // Sign with treasury private key (treasury must sign to authorize outgoing transfer)
+      const signedTx = await frozenTx.sign(fromKey);
       
       // Execute transaction
-      const response = await signedTransaction.execute(this.client);
+      console.log(`Executing token transfer transaction`);
+      const response = await signedTx.execute(this.client);
+      
+      // Get receipt to confirm transaction success
       const receipt = await response.getReceipt(this.client);
       
+      const txId = response.transactionId.toString();
+      console.log(`Token transfer successful! Transaction ID: ${txId}`);
+      
       // Return transaction hash
-      return response.transactionId.toString();
+      return txId;
     } catch (error: any) {
       console.error('Token transfer error:', error);
       throw new Error(`Token transfer failed: ${error.message}`);
