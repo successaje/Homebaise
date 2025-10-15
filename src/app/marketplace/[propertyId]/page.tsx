@@ -20,6 +20,244 @@ import RecentTrades from '@/components/marketplace/RecentTrades';
 import MarketStats from '@/components/marketplace/MarketStats';
 import MyOrders from '@/components/marketplace/MyOrders';
 
+// Mock data for demo purposes
+const MOCK_DATA: Record<string, any> = {
+  'mock-1': {
+    property: {
+      id: 'mock-1',
+      name: 'Lagos Luxury Apartments',
+      title: 'Lagos Luxury Apartments',
+      description: 'Premium residential complex in Victoria Island',
+      location: 'Victoria Island, Lagos, Nigeria',
+      property_type: 'residential',
+      total_value: 2500000,
+      token_id: '0.0.123456',
+      token_symbol: 'LAGOS',
+      status: 'tokenized',
+      yield_rate: '8.5%',
+      images: ['https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=800']
+    },
+    stats: {
+      volume_24h: 45000,
+      trades_24h: 23,
+      high_24h: 52.50,
+      low_24h: 48.20,
+      change_24h: 5.2,
+      last_price: 51.75,
+      best_bid: 51.50,
+      best_ask: 52.00,
+      spread: 0.50
+    },
+    orderBook: {
+      bids: [
+        { price_per_token: 51.50, total_amount: 500, order_count: 3 },
+        { price_per_token: 51.25, total_amount: 800, order_count: 5 },
+        { price_per_token: 51.00, total_amount: 1200, order_count: 7 },
+        { price_per_token: 50.75, total_amount: 600, order_count: 4 }
+      ],
+      asks: [
+        { price_per_token: 52.00, total_amount: 600, order_count: 4 },
+        { price_per_token: 52.25, total_amount: 900, order_count: 6 },
+        { price_per_token: 52.50, total_amount: 750, order_count: 5 },
+        { price_per_token: 52.75, total_amount: 400, order_count: 2 }
+      ],
+      spread: 0.50,
+      mid_price: 51.75
+    },
+    recentTrades: [
+      { id: '1', token_amount: 150, price_per_token: 51.75, total_price: 7762.5, completed_at: new Date(Date.now() - 5 * 60000).toISOString() },
+      { id: '2', token_amount: 200, price_per_token: 51.50, total_price: 10300, completed_at: new Date(Date.now() - 15 * 60000).toISOString() },
+      { id: '3', token_amount: 100, price_per_token: 51.25, total_price: 5125, completed_at: new Date(Date.now() - 30 * 60000).toISOString() },
+      { id: '4', token_amount: 300, price_per_token: 51.00, total_price: 15300, completed_at: new Date(Date.now() - 45 * 60000).toISOString() },
+      { id: '5', token_amount: 75, price_per_token: 51.60, total_price: 3870, completed_at: new Date(Date.now() - 60 * 60000).toISOString() }
+    ]
+  },
+  'mock-2': {
+    property: {
+      id: 'mock-2',
+      name: 'Nairobi Commercial Plaza',
+      location: 'Westlands, Nairobi, Kenya',
+      token_id: '0.0.234567',
+      token_symbol: 'NRBI',
+      status: 'tokenized',
+      yield_rate: '12.3%',
+      images: ['https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=800']
+    },
+    stats: {
+      volume_24h: 67000,
+      trades_24h: 34,
+      change_24h: 3.8,
+      last_price: 77.25,
+      best_bid: 76.90,
+      best_ask: 77.50,
+      spread: 0.60
+    },
+    orderBook: {
+      bids: [
+        { price_per_token: 76.90, total_amount: 400, order_count: 2 },
+        { price_per_token: 76.50, total_amount: 650, order_count: 4 },
+        { price_per_token: 76.00, total_amount: 900, order_count: 6 }
+      ],
+      asks: [
+        { price_per_token: 77.50, total_amount: 500, order_count: 3 },
+        { price_per_token: 78.00, total_amount: 700, order_count: 5 },
+        { price_per_token: 78.50, total_amount: 450, order_count: 3 }
+      ],
+      spread: 0.60,
+      mid_price: 77.20
+    },
+    recentTrades: [
+      { id: '1', token_amount: 250, price_per_token: 77.25, total_price: 19312.5, completed_at: new Date(Date.now() - 3 * 60000).toISOString() },
+      { id: '2', token_amount: 180, price_per_token: 77.00, total_price: 13860, completed_at: new Date(Date.now() - 12 * 60000).toISOString() }
+    ]
+  },
+  'mock-3': {
+    property: {
+      id: 'mock-3',
+      name: 'Cape Town Beachfront',
+      location: 'Camps Bay, Cape Town, South Africa',
+      token_id: '0.0.345678',
+      token_symbol: 'CAPE',
+      status: 'tokenized',
+      yield_rate: '6.8%',
+      images: ['https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800']
+    },
+    stats: {
+      volume_24h: 28000,
+      trades_24h: 15,
+      change_24h: -1.5,
+      last_price: 93.20,
+      best_bid: 92.80,
+      best_ask: 93.60,
+      spread: 0.80
+    },
+    orderBook: {
+      bids: [
+        { price_per_token: 92.80, total_amount: 300, order_count: 2 },
+        { price_per_token: 92.50, total_amount: 500, order_count: 3 }
+      ],
+      asks: [
+        { price_per_token: 93.60, total_amount: 350, order_count: 2 },
+        { price_per_token: 94.00, total_amount: 450, order_count: 3 }
+      ],
+      spread: 0.80,
+      mid_price: 93.20
+    },
+    recentTrades: [
+      { id: '1', token_amount: 100, price_per_token: 93.20, total_price: 9320, completed_at: new Date(Date.now() - 8 * 60000).toISOString() }
+    ]
+  },
+  'mock-4': {
+    property: {
+      id: 'mock-4',
+      name: 'Accra Tech Hub',
+      location: 'Osu, Accra, Ghana',
+      token_id: '0.0.456789',
+      token_symbol: 'TECH',
+      status: 'tokenized',
+      yield_rate: '10.5%',
+      images: ['https://images.unsplash.com/photo-1497366216548-37526070297c?w=800']
+    },
+    stats: {
+      volume_24h: 52000,
+      trades_24h: 28,
+      change_24h: 6.2,
+      last_price: 37.90,
+      best_bid: 37.60,
+      best_ask: 38.10,
+      spread: 0.50
+    },
+    orderBook: {
+      bids: [
+        { price_per_token: 37.60, total_amount: 700, order_count: 4 },
+        { price_per_token: 37.30, total_amount: 950, order_count: 6 }
+      ],
+      asks: [
+        { price_per_token: 38.10, total_amount: 600, order_count: 4 },
+        { price_per_token: 38.40, total_amount: 800, order_count: 5 }
+      ],
+      spread: 0.50,
+      mid_price: 37.85
+    },
+    recentTrades: [
+      { id: '1', token_amount: 220, price_per_token: 37.90, total_price: 8338, completed_at: new Date(Date.now() - 4 * 60000).toISOString() },
+      { id: '2', token_amount: 180, price_per_token: 37.70, total_price: 6786, completed_at: new Date(Date.now() - 18 * 60000).toISOString() }
+    ]
+  },
+  'mock-5': {
+    property: {
+      id: 'mock-5',
+      name: 'Kigali Urban Residences',
+      location: 'Kigali City, Rwanda',
+      token_id: '0.0.567890',
+      token_symbol: 'KGLI',
+      status: 'tokenized',
+      yield_rate: '9.2%',
+      images: ['https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=800']
+    },
+    stats: {
+      volume_24h: 15000,
+      trades_24h: 8,
+      change_24h: 2.1,
+      last_price: 26.30,
+      best_bid: 26.00,
+      best_ask: 26.50,
+      spread: 0.50
+    },
+    orderBook: {
+      bids: [
+        { price_per_token: 26.00, total_amount: 400, order_count: 2 },
+        { price_per_token: 25.80, total_amount: 550, order_count: 3 }
+      ],
+      asks: [
+        { price_per_token: 26.50, total_amount: 350, order_count: 2 },
+        { price_per_token: 26.75, total_amount: 500, order_count: 3 }
+      ],
+      spread: 0.50,
+      mid_price: 26.25
+    },
+    recentTrades: [
+      { id: '1', token_amount: 120, price_per_token: 26.30, total_price: 3156, completed_at: new Date(Date.now() - 10 * 60000).toISOString() }
+    ]
+  },
+  'mock-6': {
+    property: {
+      id: 'mock-6',
+      name: 'Dar es Salaam Shopping Mall',
+      location: 'Mikocheni, Dar es Salaam, Tanzania',
+      token_id: '0.0.678901',
+      token_symbol: 'DARES',
+      status: 'tokenized',
+      yield_rate: '11.8%',
+      images: ['https://images.unsplash.com/photo-1519643381401-22c77e60520e?w=800']
+    },
+    stats: {
+      volume_24h: 38000,
+      trades_24h: 19,
+      change_24h: 4.1,
+      last_price: 57.60,
+      best_bid: 57.20,
+      best_ask: 57.90,
+      spread: 0.70
+    },
+    orderBook: {
+      bids: [
+        { price_per_token: 57.20, total_amount: 550, order_count: 3 },
+        { price_per_token: 56.90, total_amount: 700, order_count: 5 }
+      ],
+      asks: [
+        { price_per_token: 57.90, total_amount: 480, order_count: 3 },
+        { price_per_token: 58.20, total_amount: 620, order_count: 4 }
+      ],
+      spread: 0.70,
+      mid_price: 57.55
+    },
+    recentTrades: [
+      { id: '1', token_amount: 190, price_per_token: 57.60, total_price: 10944, completed_at: new Date(Date.now() - 6 * 60000).toISOString() }
+    ]
+  }
+};
+
 export default function MarketplacePage() {
   const params = useParams();
   const router = useRouter();
@@ -51,26 +289,44 @@ export default function MarketplacePage() {
         await fetchMyOrders(session.user.id);
       }
 
-      // Fetch property
-      const { data: propertyData } = await supabase
-        .from('properties')
-        .select('*')
-        .eq('id', propertyId)
-        .single();
+      // Check if this is a mock property
+      if (propertyId.startsWith('mock-') && MOCK_DATA[propertyId]) {
+        const mockData = MOCK_DATA[propertyId];
+        setProperty(mockData.property as Property);
+        setStats(mockData.stats as MarketplaceStatistics);
+        setOrderBook(mockData.orderBook as OrderBook);
+        setRecentTrades(mockData.recentTrades as MarketplaceTrade[]);
+      } else {
+        // Fetch real property with token_id from treasury
+        const { data: propertyData } = await supabase
+          .from('properties')
+          .select(`
+            *,
+            treasury:property_treasury_accounts(token_id)
+          `)
+          .eq('id', propertyId)
+          .single();
 
-      if (!propertyData) {
-        router.push('/marketplace');
-        return;
+        if (!propertyData) {
+          router.push('/marketplace');
+          return;
+        }
+
+        // Merge token_id from treasury into property object
+        const propertyWithToken = {
+          ...propertyData,
+          token_id: propertyData.treasury?.[0]?.token_id || propertyData.token_id
+        };
+
+        setProperty(propertyWithToken as Property);
+
+        // Fetch market data
+        await Promise.all([
+          fetchStatistics(),
+          fetchOrderBook(),
+          fetchRecentTrades()
+        ]);
       }
-
-      setProperty(propertyData as Property);
-
-      // Fetch market data
-      await Promise.all([
-        fetchStatistics(),
-        fetchOrderBook(),
-        fetchRecentTrades()
-      ]);
 
     } catch (error) {
       console.error('Error initializing marketplace page:', error);
@@ -80,6 +336,9 @@ export default function MarketplacePage() {
   };
 
   const fetchStatistics = async () => {
+    // Skip for mock data
+    if (propertyId.startsWith('mock-')) return;
+    
     try {
       const response = await fetch(`/api/marketplace/statistics?property_id=${propertyId}`);
       const data = await response.json();
@@ -92,6 +351,9 @@ export default function MarketplacePage() {
   };
 
   const fetchOrderBook = async () => {
+    // Skip for mock data
+    if (propertyId.startsWith('mock-')) return;
+    
     try {
       const response = await fetch(`/api/marketplace/orderbook?property_id=${propertyId}`);
       const data = await response.json();
@@ -104,6 +366,9 @@ export default function MarketplacePage() {
   };
 
   const fetchRecentTrades = async () => {
+    // Skip for mock data
+    if (propertyId.startsWith('mock-')) return;
+    
     try {
       const response = await fetch(`/api/marketplace/trades?property_id=${propertyId}&limit=20`);
       const data = await response.json();
@@ -266,6 +531,14 @@ export default function MarketplacePage() {
                 <Link href="/marketplace" className="hover:text-white">Marketplace</Link>
                 <span>›</span>
                 <span>{property.token_symbol || property.name}</span>
+                {propertyId.startsWith('mock-') && (
+                  <>
+                    <span>›</span>
+                    <span className="bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded text-xs font-semibold">
+                      ✨ Demo
+                    </span>
+                  </>
+                )}
               </div>
               <h1 className="text-3xl font-bold text-white mb-2">
                 {property.name || property.title}

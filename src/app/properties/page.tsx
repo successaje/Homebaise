@@ -166,6 +166,9 @@ export default function PropertiesPage() {
               <span className="text-xl font-bold text-white">Homebaise</span>
             </Link>
             <div className="flex items-center space-x-4">
+              <Link href="/marketplace" className="text-emerald-400 hover:text-emerald-300 font-medium">
+                🔥 Trade Tokens
+              </Link>
               <Link href="/dashboard" className="text-gray-300 hover:text-white">Dashboard</Link>
               <Link href="/profile" className="text-gray-300 hover:text-white">Profile</Link>
             </div>

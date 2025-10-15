@@ -372,7 +372,6 @@ CREATE OR REPLACE VIEW public.marketplace_recent_trades AS
 SELECT 
     t.*,
     p.name as property_name,
-    p.token_symbol,
     buyer.email as buyer_email,
     seller.email as seller_email
 FROM public.marketplace_trades t

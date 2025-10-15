@@ -70,9 +70,17 @@ export async function POST(request: NextRequest) {
     }: CreateOrderInput = body;
 
     // Validate required fields
-    if (!property_id || !token_id || !order_type || !token_amount || !price_per_token) {
+    const missingFields = [];
+    if (!property_id) missingFields.push('property_id');
+    if (!token_id) missingFields.push('token_id');
+    if (!order_type) missingFields.push('order_type');
+    if (!token_amount) missingFields.push('token_amount');
+    if (price_per_token === undefined || price_per_token === null) missingFields.push('price_per_token');
+    
+    if (missingFields.length > 0) {
+      console.error('Missing fields in order creation:', missingFields, body);
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: `Missing required fields: ${missingFields.join(', ')}` },
         { status: 400 }
       );
     }
