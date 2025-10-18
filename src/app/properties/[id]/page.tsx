@@ -7,6 +7,7 @@ import { getPropertyTokenBalance } from '@/lib/hedera-treasury';
 import MagneticEffect from '@/components/MagneticEffect';
 import ScrollAnimations from '@/components/ScrollAnimations';
 import PropertyCertificate from '@/components/PropertyCertificate';
+import AIInsightsCard from '@/components/ai/AIInsightsCard';
 import Link from 'next/link';
 import { createClient } from '@supabase/supabase-js';
 import { toast } from 'react-hot-toast';
@@ -701,6 +702,11 @@ const PropertyDetailPage = () => {
                       <span className="text-white text-sm">{formatDate(property.updated_at)}</span>
                     </div>
                   </div>
+                </div>
+
+                {/* AI Insights */}
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+                  <AIInsightsCard property={property} compact={true} />
                 </div>
               </div>
             </div>
