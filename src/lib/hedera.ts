@@ -357,6 +357,11 @@ export interface EnsureAssociationInput {
 }
 
 export async function ensureTokenAssociation({ client, userAccountId, userPrivateKey, tokenId }: EnsureAssociationInput): Promise<void> {
+  // Validate inputs
+  if (!userAccountId || !userPrivateKey || !tokenId) {
+    throw new Error('Missing required parameters for token association');
+  }
+
   // Attempt to associate token. If already associated, Hedera returns an error; we swallow it for idempotency.
   try {
     const tx = await new TokenAssociateTransaction()

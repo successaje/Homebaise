@@ -5,7 +5,6 @@ import { createClient } from '@supabase/supabase-js';
 import PropertyCard from '@/components/PropertyCard';
 import MagneticEffect from '@/components/MagneticEffect';
 import ScrollAnimations from '@/components/ScrollAnimations';
-import AIInsightsCard from '@/components/ai/AIInsightsCard';
 import { getPropertyTypeLabel, getCountryFlag } from '@/lib/utils';
 import Link from 'next/link';
 
@@ -218,7 +217,7 @@ export default function PropertiesPage() {
                   >
                     <option value="all">All Types</option>
                     {propertyTypes.map(type => (
-                      <option key={type} value={type}>{getPropertyTypeLabel(type)}</option>
+                      <option key={type} value={type || ''}>{getPropertyTypeLabel(type || '')}</option>
                     ))}
                   </select>
                 </div>
@@ -233,8 +232,8 @@ export default function PropertiesPage() {
                   >
                     <option value="all">All Countries</option>
                     {countries.map(country => (
-                      <option key={country} value={country}>
-                        {getCountryFlag(country)} {country}
+                      <option key={country} value={country || ''}>
+                        {getCountryFlag(country || '')} {country}
                       </option>
                     ))}
                   </select>
@@ -273,54 +272,6 @@ export default function PropertiesPage() {
             </div>
           </ScrollAnimations>
 
-          {/* AI Analysis Section */}
-          <ScrollAnimations animationType="fade-in-up" delay={300}>
-            <div className="mb-8">
-              <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-2xl p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h2 className="text-2xl font-bold text-white flex items-center">
-                      <span className="mr-3">🤖</span>
-                      AI-Powered Property Analysis
-                    </h2>
-                    <p className="text-gray-400 mt-1">
-                      Get instant insights on any property with DeepSeek AI
-                    </p>
-                  </div>
-                  <div className="hidden md:flex items-center space-x-4 text-sm text-gray-400">
-                    <div className="flex items-center">
-                      <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
-                      Risk Assessment
-                    </div>
-                    <div className="flex items-center">
-                      <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
-                      Market Analysis
-                    </div>
-                    <div className="flex items-center">
-                      <span className="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
-                      Investment Recommendation
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredProperties.slice(0, 3).map((property) => (
-                    <div key={property.id} className="bg-white/5 border border-white/10 rounded-lg p-4">
-                      <AIInsightsCard property={property} compact={true} />
-                    </div>
-                  ))}
-                </div>
-                
-                {filteredProperties.length > 3 && (
-                  <div className="mt-4 text-center">
-                    <p className="text-gray-400 text-sm">
-                      AI analysis available for all {filteredProperties.length} properties
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </ScrollAnimations>
 
           {/* Properties Grid */}
           <ScrollAnimations animationType="fade-in-up" delay={400}>
@@ -350,7 +301,6 @@ export default function PropertiesPage() {
                     key={property.id} 
                     property={property}
                     className="animate-fade-in-up"
-                    style={{ animationDelay: `${index * 100}ms` }}
                   />
                 ))}
               </div>

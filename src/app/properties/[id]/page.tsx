@@ -7,7 +7,7 @@ import { getPropertyTokenBalance } from '@/lib/hedera-treasury';
 import MagneticEffect from '@/components/MagneticEffect';
 import ScrollAnimations from '@/components/ScrollAnimations';
 import PropertyCertificate from '@/components/PropertyCertificate';
-import AIInsightsCard from '@/components/ai/AIInsightsCard';
+import AIInsightsModal from '@/components/ai/AIInsightsModal';
 import Link from 'next/link';
 import { createClient } from '@supabase/supabase-js';
 import { toast } from 'react-hot-toast';
@@ -37,6 +37,7 @@ const PropertyDetailPage = () => {
   } | null>(null);
   const [isGeneratingCertificate, setIsGeneratingCertificate] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [showAIInsights, setShowAIInsights] = useState(false);
   const [tokenId, setTokenId] = useState<string | null>(null);
 
   // Helper functions
@@ -705,8 +706,43 @@ const PropertyDetailPage = () => {
                 </div>
 
                 {/* AI Insights */}
-                <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-                  <AIInsightsCard property={property} compact={true} />
+                <div className="bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-indigo-500/10 border border-blue-500/30 rounded-3xl p-8 backdrop-blur-sm relative overflow-hidden">
+                  {/* Animated background elements */}
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full blur-3xl"></div>
+                  <div className="absolute bottom-0 left-0 w-24 h-24 bg-purple-500/5 rounded-full blur-2xl"></div>
+                  
+                  <div className="relative z-10">
+                    <div className="flex items-center mb-6">
+                      <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-2xl flex items-center justify-center mr-4 shadow-lg">
+                        <span className="text-xl">🤖</span>
+                      </div>
+                      <div>
+                        <h3 className="text-2xl font-bold text-white mb-1">
+                          AI Property Analysis
+                        </h3>
+                        <p className="text-gray-300">
+                          Advanced machine learning insights for this property
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex flex-wrap items-center gap-3 mb-6">
+                      <div className="flex items-center bg-green-500/20 border border-green-500/30 rounded-full px-4 py-2 backdrop-blur-sm">
+                        <div className="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></div>
+                        <span className="text-green-300 font-medium text-sm">Risk Assessment</span>
+                      </div>
+                      <div className="flex items-center bg-blue-500/20 border border-blue-500/30 rounded-full px-4 py-2 backdrop-blur-sm">
+                        <div className="w-2 h-2 bg-blue-400 rounded-full mr-2 animate-pulse"></div>
+                        <span className="text-blue-300 font-medium text-sm">Market Analysis</span>
+                      </div>
+                      <div className="flex items-center bg-purple-500/20 border border-purple-500/30 rounded-full px-4 py-2 backdrop-blur-sm">
+                        <div className="w-2 h-2 bg-purple-400 rounded-full mr-2 animate-pulse"></div>
+                        <span className="text-purple-300 font-medium text-sm">Smart Recommendations</span>
+                      </div>
+                    </div>
+                    
+                    <AIInsightsCard property={property} compact={false} />
+                  </div>
                 </div>
               </div>
             </div>

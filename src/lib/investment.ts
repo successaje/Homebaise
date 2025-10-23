@@ -231,7 +231,15 @@ export class InvestmentService {
     tokens: number,
     property: Property
   ): { valid: boolean; error?: string } {
-    // Check minimum investment
+    // Check global minimum investment (hard limit)
+    if (amount < 10) {
+      return {
+        valid: false,
+        error: 'Minimum investment is $10'
+      };
+    }
+
+    // Check property-specific minimum investment
     if (property.min_investment && amount < property.min_investment) {
       return {
         valid: false,

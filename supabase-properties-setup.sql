@@ -46,6 +46,27 @@ BEGIN
         ALTER TABLE properties ADD COLUMN rejection_reason TEXT;
     END IF;
     
+    -- Add token-related columns if they don't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'properties' AND column_name = 'token_id') THEN
+        ALTER TABLE properties ADD COLUMN token_id TEXT;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'properties' AND column_name = 'token_symbol') THEN
+        ALTER TABLE properties ADD COLUMN token_symbol TEXT;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'properties' AND column_name = 'token_name') THEN
+        ALTER TABLE properties ADD COLUMN token_name TEXT;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'properties' AND column_name = 'token_decimals') THEN
+        ALTER TABLE properties ADD COLUMN token_decimals INTEGER DEFAULT 8;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'properties' AND column_name = 'token_type') THEN
+        ALTER TABLE properties ADD COLUMN token_type TEXT DEFAULT 'FUNGIBLE';
+    END IF;
+    
     -- Add certificate-related columns if they don't exist
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'properties' AND column_name = 'certificate_token_id') THEN
         ALTER TABLE properties ADD COLUMN certificate_token_id TEXT;
@@ -173,7 +194,7 @@ BEGIN
           'Waterfront, Victoria Island',
           2500000.00,
           1000.00,
-          100.00,
+          10.00,
           10000.00,
           '8.5%',
           ARRAY['bafybeidemoimagecid1'],
@@ -189,7 +210,7 @@ BEGIN
           'Upper Hill District',
           1800000.00,
           800.00,
-          100.00,
+          10.00,
           10000.00,
           '7.2%',
           ARRAY['bafybeidemoimagecid2'],
@@ -205,7 +226,7 @@ BEGIN
           'Ring Road Central',
           3200000.00,
           1200.00,
-          100.00,
+          10.00,
           10000.00,
           '9.1%',
           ARRAY['bafybeidemoimagecid3'],
@@ -221,7 +242,7 @@ BEGIN
           'Observatory',
           1200000.00,
           600.00,
-          100.00,
+          10.00,
           10000.00,
           '6.8%',
           ARRAY['bafybeidemoimagecid4'],
@@ -237,7 +258,7 @@ BEGIN
           'Special Economic Zone',
           4500000.00,
           1500.00,
-          100.00,
+          10.00,
           10000.00,
           '10.5%',
           ARRAY['bafybeidemoimagecid5'],

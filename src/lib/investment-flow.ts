@@ -79,7 +79,7 @@ export class InvestmentFlow {
       // Step 6: Payment & Treasury Transfer (HBAR)
       // Convert USD amount to HBAR using live price, then transfer from investor to treasury
       const hbarUsdPrice = await getHbarUsdPrice();
-      const hbarNeeded = hbarUsdPrice > 0 ? investmentAmount / hbarUsdPrice : 0;
+      const hbarNeeded = hbarUsdPrice > 0 ? Math.floor((investmentAmount / hbarUsdPrice) * 100000000) / 100000000 : 0;
       if (hbarNeeded <= 0) {
         return { success: false, error: 'Failed to compute HBAR amount for this investment' };
       }
@@ -273,7 +273,15 @@ export class InvestmentFlow {
       return { valid: false, error: 'Property is not available for investment' };
     }
 
-    // Check minimum investment
+    // Check global minimum investment (hard limit)
+    if (amount < 10) {
+      return { 
+        valid: false, 
+        error: 'Minimum investment is $10' 
+      };
+    }
+
+    // Check property-specific minimum investment
     if (property.min_investment && amount < property.min_investment) {
       return { 
         valid: false, 
@@ -303,7 +311,7 @@ export class InvestmentFlow {
   private async fetchInvestorInfo(investorId: string): Promise<InvestorInfo> {
     const { data: profile, error } = await supabase
       .from('profiles')
-      .select('hedera_account_id, hedera_private_key')
+      .select('wallet_address, hedera_private_key')
       .eq('id', investorId)
       .single();
 
@@ -311,12 +319,12 @@ export class InvestmentFlow {
       throw new Error(`Investor profile not found: ${error?.message}`);
     }
 
-    if (!profile.hedera_account_id || !profile.hedera_private_key) {
+    if (!profile.wallet_address || !profile.hedera_private_key) {
       throw new Error('Investor does not have a Hedera account set up');
     }
 
     return {
-      hedera_account_id: profile.hedera_account_id,
+      hedera_account_id: profile.wallet_address,
       hedera_private_key: profile.hedera_private_key
     };
   }

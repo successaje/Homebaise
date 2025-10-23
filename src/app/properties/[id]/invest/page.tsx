@@ -7,12 +7,12 @@ import { formatNumber, formatCurrency, getPropertyTypeLabel, getCountryFlag } fr
 import MagneticEffect from '@/components/MagneticEffect';
 import ScrollAnimations from '@/components/ScrollAnimations';
 import InvestmentConfirmation from '@/components/InvestmentConfirmation';
-import PaymentProcessor from '@/components/PaymentProcessor';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { InvestmentService } from '@/lib/investment';
 import { getHbarUsdPrice, getAccountBalance, ensureTokenAssociation } from '@/lib/hedera';
 import { Client } from '@hashgraph/sdk';
+import HederaAccountCreator from '@/components/HederaAccountCreator';
 
 interface InvestmentForm {
   amount: number;
@@ -29,7 +29,6 @@ export default function InvestPage() {
   const [loading, setLoading] = useState(true);
   const [investing, setInvesting] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
-  const [showPaymentProcessor, setShowPaymentProcessor] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [availableTokens, setAvailableTokens] = useState<number>(0);
@@ -38,6 +37,7 @@ export default function InvestPage() {
   const [walletHbarBalance, setWalletHbarBalance] = useState<number>(0);
   const [associationApproved, setAssociationApproved] = useState<boolean>(false);
   const [associating, setAssociating] = useState<boolean>(false);
+  const [showHederaCreator, setShowHederaCreator] = useState<boolean>(false);
   const [form, setForm] = useState<InvestmentForm>({
     amount: 0,
     tokens: 0,
@@ -63,6 +63,22 @@ export default function InvestPage() {
             console.error('Error fetching property:', error);
             router.push('/properties');
             return;
+          }
+          
+          // Get token_id from treasury accounts
+          try {
+            const { data: treasuryData, error: treasuryError } = await supabase
+              .from('property_treasury_accounts')
+              .select('token_id')
+              .eq('property_id', propertyData.id)
+              .single();
+            
+            if (!treasuryError && treasuryData?.token_id) {
+              // Add token_id to property data
+              propertyData.token_id = treasuryData.token_id;
+            }
+          } catch (error) {
+            console.error('Error fetching treasury data:', error);
           }
           
           setProperty(propertyData as Property);
@@ -96,7 +112,7 @@ export default function InvestPage() {
           setUserProfile(profile);
           setForm(prev => ({
             ...prev,
-            kycVerified: profile.kyc_status === 'verified'
+            kycVerified: Boolean(profile.kyc_status === 'verified')
           }));
 
           // Fetch HBAR price and wallet balance
@@ -106,8 +122,8 @@ export default function InvestPage() {
           } catch {}
 
           try {
-            if (profile.hedera_account_id) {
-              const bal = await getAccountBalance(profile.hedera_account_id);
+            if (profile.wallet_address) {
+              const bal = await getAccountBalance(profile.wallet_address);
               setWalletHbarBalance(bal);
             }
           } catch (e) {
@@ -124,6 +140,35 @@ export default function InvestPage() {
 
     init();
   }, [params.id, router]);
+
+  const handleHederaAccountCreated = async (accountId: string, evmAddress: string) => {
+    // Refresh user profile to get the new Hedera account details
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
+        if (profile) {
+          setUserProfile(profile);
+          setShowHederaCreator(false);
+          
+          // Fetch wallet balance for the new account
+          try {
+            const bal = await getAccountBalance(profile.wallet_address);
+            setWalletHbarBalance(bal);
+          } catch (e) {
+            console.error('Failed to fetch new Hedera wallet balance', e);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error refreshing profile after Hedera account creation:', error);
+    }
+  };
 
   const calculateTokens = (amount: number) => {
     // 1:1 ratio - $1 = 1 token
@@ -226,34 +271,42 @@ export default function InvestPage() {
     const isValid = await validateForm();
     if (!isValid) return;
     
-    setShowPaymentProcessor(true);
-  };
-
-  const handlePaymentSuccess = async (transactionId: string) => {
-    setShowPaymentProcessor(false);
     setInvesting(true);
-    
     try {
       if (!property || !user) {
         throw new Error('Missing property or user data');
       }
 
-      // Execute complete investment flow with Hedera SDK
-      const result = await InvestmentService.executeInvestment(
+      // Use the proper Hedera investment flow
+      const { InvestmentFlow } = await import('@/lib/investment-flow');
+      
+      // Get operator credentials
+      const operatorId = process.env.NEXT_PUBLIC_MY_ACCOUNT_ID || process.env.MY_ACCOUNT_ID;
+      const operatorKey = process.env.NEXT_PUBLIC_MY_PRIVATE_KEY || process.env.MY_PRIVATE_KEY;
+      
+      if (!operatorId || !operatorKey) {
+        throw new Error('Missing operator credentials');
+      }
+
+      // Create investment flow instance
+      const investmentFlow = new InvestmentFlow();
+      
+      // Execute the investment
+      const result = await investmentFlow.executeInvestment(
         property.id,
         user.id,
         form.amount
       );
 
-      if (!result.success) {
+      if (result.success) {
+        // Update available tokens
+        const newAvailableTokens = await InvestmentService.getAvailableTokens(property.id);
+        setAvailableTokens(newAvailableTokens);
+        
+        setShowConfirmation(true);
+      } else {
         throw new Error(result.error || 'Investment failed');
       }
-
-      // Refresh available tokens
-      const newAvailableTokens = await InvestmentService.getAvailableTokens(property.id);
-      setAvailableTokens(newAvailableTokens);
-      
-      setShowConfirmation(true);
     } catch (error) {
       console.error('Investment failed:', error);
       alert(`Investment failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -262,14 +315,6 @@ export default function InvestPage() {
     }
   };
 
-  const handlePaymentError = (error: string) => {
-    setShowPaymentProcessor(false);
-    alert(error);
-  };
-
-  const handlePaymentCancel = () => {
-    setShowPaymentProcessor(false);
-  };
 
   if (loading) {
     return (
@@ -374,18 +419,18 @@ export default function InvestPage() {
                       type="number"
                       value={form.amount || ''}
                       onChange={(e) => handleAmountChange(Number(e.target.value))}
-                      min={property.min_investment || 0}
+                      min={Math.max(10, property.min_investment || 10)}
                       max={property.max_investment || Infinity}
                       step={1}
                       className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                      placeholder={`Min: ${formatCurrency(property.min_investment || 0)}`}
+                      placeholder={`Min: ${formatCurrency(Math.max(10, property.min_investment || 10))}`}
                     />
                   <div className="flex justify-between text-sm text-gray-400 mt-2">
                     <span>HBAR Price: {hbarPrice ? `$${hbarPrice.toFixed(4)}/HBAR` : '...'}</span>
                     <span>≈ {hbarEquivalent ? hbarEquivalent.toFixed(4) : '0.0000'} HBAR</span>
                   </div>
                     <div className="flex justify-between text-sm text-gray-400 mt-2">
-                      <span>Min: {formatCurrency(property.min_investment || 0)}</span>
+                      <span>Min: {formatCurrency(Math.max(10, property.min_investment || 10))}</span>
                       <span>Max: {formatCurrency(property.max_investment || Infinity)}</span>
                     </div>
                   </div>
@@ -461,26 +506,61 @@ export default function InvestPage() {
                     </label>
                   </div>
 
+                  {/* Hedera Account Setup */}
+                  {!userProfile?.wallet_address && (
+                    <div className="mb-6 p-4 bg-orange-500/10 border border-orange-500/20 rounded-xl">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-white font-medium">Hedera Account Required</div>
+                          <div className="text-gray-400 text-sm">You need a Hedera account to invest in tokenized properties</div>
+                        </div>
+                        <button
+                          onClick={() => setShowHederaCreator(true)}
+                          className="px-4 py-2 bg-orange-600 text-white rounded-lg font-semibold hover:bg-orange-700 transition-colors"
+                        >
+                          Create Account
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Token Association */}
-                  {property?.token_id && userProfile?.hedera_account_id && (
+                  {property?.token_id && userProfile?.wallet_address && (
                     <div className="mb-6 p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl">
                       <div className="flex items-center justify-between">
                         <div>
                           <div className="text-white font-medium">Token Association Required</div>
-                          <div className="text-gray-400 text-sm">Associate token {property.token_id} with your wallet</div>
+                          <div className="text-gray-400 text-sm">
+                            Associate token {property?.token_id || 'N/A'} with your wallet
+                          </div>
+                          <div className="text-gray-500 text-xs mt-1">
+                            Debug: token_id={property?.token_id || 'null'}, wallet_address={userProfile?.wallet_address || 'null'}, property_id={property?.id || 'null'}
+                          </div>
                         </div>
                         <button
                           disabled={associating || associationApproved}
                           onClick={async () => {
                             setAssociating(true);
                             try {
+                              // Check if we have all required data
+                              if (!property?.token_id) {
+                                throw new Error('Property token ID not available');
+                              }
+                              if (!userProfile?.wallet_address) {
+                                throw new Error('User Hedera account not found');
+                              }
+                              if (!userProfile?.hedera_private_key) {
+                                throw new Error('User Hedera private key not found');
+                              }
+
                               const operatorId = process.env.NEXT_PUBLIC_MY_ACCOUNT_ID || process.env.MY_ACCOUNT_ID;
                               const operatorKey = process.env.NEXT_PUBLIC_MY_PRIVATE_KEY || process.env.MY_PRIVATE_KEY;
                               if (!operatorId || !operatorKey) throw new Error('Missing operator credentials');
+                              
                               const client = Client.forTestnet().setOperator(operatorId, operatorKey);
                               await ensureTokenAssociation({
                                 client,
-                                userAccountId: userProfile.hedera_account_id,
+                                userAccountId: userProfile.wallet_address,
                                 userPrivateKey: userProfile.hedera_private_key,
                                 tokenId: property.token_id
                               });
@@ -521,7 +601,7 @@ export default function InvestPage() {
                   <MagneticEffect>
                     <button
                       onClick={handleInvest}
-                      disabled={investing || !form.kycVerified || !form.termsAccepted || form.amount === 0 || (property?.token_id && !associationApproved)}
+                      disabled={investing || !(form.kycVerified === true) || !form.termsAccepted || form.amount === 0 || (property?.token_id && !associationApproved)}
                       className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white py-4 px-6 rounded-xl font-semibold hover:shadow-lg hover:shadow-emerald-500/25 transition-all duration-300 hover-lift disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {investing ? (
@@ -694,15 +774,26 @@ export default function InvestPage() {
         />
       )}
 
-      {/* Payment Processor Modal */}
-      {showPaymentProcessor && property && (
-        <PaymentProcessor
-          amount={form.amount}
-          paymentMethod={form.paymentMethod}
-          onSuccess={handlePaymentSuccess}
-          onError={handlePaymentError}
-          onCancel={handlePaymentCancel}
-        />
+
+      {/* Hedera Account Creator Modal */}
+      {showHederaCreator && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-6 max-w-md w-full">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold text-white">Create Hedera Account</h3>
+              <button
+                onClick={() => setShowHederaCreator(false)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+            <HederaAccountCreator
+              onAccountCreated={handleHederaAccountCreated}
+              className="w-full"
+            />
+          </div>
+        </div>
       )}
     </div>
   );

@@ -124,6 +124,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate investment amount
+    if (amount < 10) {
+      return NextResponse.json(
+        { error: 'Minimum investment is $10' },
+        { status: 400 }
+      );
+    }
+
     if (amount < (property.min_investment || 0)) {
       return NextResponse.json(
         { error: `Minimum investment is ${property.min_investment}` },
