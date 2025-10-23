@@ -1,3 +1,13 @@
+-- Add phone_number column to profiles table (for WhatsApp/Telegram bot integration)
+DO $$ 
+BEGIN
+    -- Add phone_number column to profiles if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'profiles' AND column_name = 'phone_number') THEN
+        ALTER TABLE profiles ADD COLUMN phone_number TEXT;
+        COMMENT ON COLUMN profiles.phone_number IS 'User phone number for WhatsApp/Telegram bot integration and easier onboarding';
+    END IF;
+END $$;
+
 -- Add missing columns to existing properties table (only if they don't exist)
 DO $$ 
 BEGIN

@@ -711,22 +711,22 @@ const PropertyDetailPage = () => {
                   <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full blur-3xl"></div>
                   <div className="absolute bottom-0 left-0 w-24 h-24 bg-purple-500/5 rounded-full blur-2xl"></div>
                   
-                  <div className="relative z-10">
-                    <div className="flex items-center mb-6">
-                      <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-2xl flex items-center justify-center mr-4 shadow-lg">
-                        <span className="text-xl">🤖</span>
+                  <div className="relative z-10 text-center">
+                    <div className="flex items-center justify-center mb-6">
+                      <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-500 rounded-3xl flex items-center justify-center mr-4 shadow-lg">
+                        <span className="text-3xl">🤖</span>
                       </div>
                       <div>
-                        <h3 className="text-2xl font-bold text-white mb-1">
+                        <h3 className="text-3xl font-bold text-white mb-2">
                           AI Property Analysis
                         </h3>
-                        <p className="text-gray-300">
-                          Advanced machine learning insights for this property
+                        <p className="text-gray-300 text-lg">
+                          Get advanced machine learning insights
                         </p>
                       </div>
                     </div>
                     
-                    <div className="flex flex-wrap items-center gap-3 mb-6">
+                    <div className="flex flex-wrap items-center justify-center gap-3 mb-8">
                       <div className="flex items-center bg-green-500/20 border border-green-500/30 rounded-full px-4 py-2 backdrop-blur-sm">
                         <div className="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></div>
                         <span className="text-green-300 font-medium text-sm">Risk Assessment</span>
@@ -741,7 +741,18 @@ const PropertyDetailPage = () => {
                       </div>
                     </div>
                     
-                    <AIInsightsCard property={property} compact={false} />
+                    <button
+                      onClick={() => setShowAIInsights(true)}
+                      className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-8 py-4 rounded-2xl transition-all duration-300 shadow-lg hover:shadow-blue-500/25 font-semibold text-lg group"
+                    >
+                      <span className="flex items-center">
+                        <span className="mr-3">🧠</span>
+                        Run AI Analysis
+                        <svg className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </span>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -749,6 +760,15 @@ const PropertyDetailPage = () => {
           </ScrollAnimations>
         </div>
       </div>
+
+      {/* AI Insights Modal */}
+      {property && (
+        <AIInsightsModal
+          property={property}
+          isOpen={showAIInsights}
+          onClose={() => setShowAIInsights(false)}
+        />
+      )}
     </div>
   );
 };

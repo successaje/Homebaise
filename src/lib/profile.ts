@@ -17,6 +17,7 @@ export interface ProfileRow {
   hedera_evm_address: string | null
   hedera_private_key: string | null
   hedera_public_key: string | null
+  phone_number: string | null
   kyc_status: 'unverified' | 'pending' | 'verified' | null
   kyc_verified_at: string | null
   created_at: string | null
@@ -125,7 +126,8 @@ export async function ensureProfileExists(user: any): Promise<ProfileRow | null>
       hedera_account_id: null,
       hedera_evm_address: null,
       hedera_private_key: null,
-      hedera_public_key: null
+      hedera_public_key: null,
+      phone_number: null
     }
 
     console.log('ensureProfileExists - Profile data being upserted:', profileData)
@@ -168,7 +170,7 @@ export async function getBasicProfile(): Promise<ProfileRow | null> {
 
     const { data: profile, error } = await supabase
       .from('profiles')
-      .select('id, email, full_name, avatar_url, role, kyc_status, wallet_address')
+      .select('id, email, full_name, avatar_url, role, kyc_status, wallet_address, phone_number')
       .eq('id', user.id)
       .single()
 

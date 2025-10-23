@@ -22,6 +22,7 @@ export default function ProfilePage() {
   const [fullName, setFullName] = useState('')
   const [avatarUrl, setAvatarUrl] = useState('')
   const [walletAddress, setWalletAddress] = useState('')
+  const [phoneNumber, setPhoneNumber] = useState('')
   const [loading, setLoading] = useState(true)
   const [session, setSession] = useState<any>(null)
   const router = useRouter()
@@ -49,6 +50,7 @@ export default function ProfilePage() {
           setFullName(profileData.full_name || '')
           setAvatarUrl(profileData.avatar_url || '')
           setWalletAddress(profileData.wallet_address || '')
+          setPhoneNumber(profileData.phone_number || '')
           
           console.log('Profile page - Setting profile data:', profileData)
           console.log('Profile page - State variables set:', {
@@ -76,7 +78,7 @@ export default function ProfilePage() {
       walletAddress,
       loading
     });
-  }, [profile, fullName, avatarUrl, walletAddress, loading]);
+  }, [profile, fullName, avatarUrl, walletAddress, phoneNumber, loading]);
 
   const saveProfile = async () => {
     if (!profile) return
@@ -86,6 +88,7 @@ export default function ProfilePage() {
       .update({
         full_name: fullName,
         avatar_url: avatarUrl,
+        phone_number: phoneNumber,
         updated_at: new Date().toISOString()
       })
       .eq('id', profile.id)
@@ -201,6 +204,21 @@ export default function ProfilePage() {
                           className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                           placeholder="Enter avatar URL"
                         />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-1">
+                          Phone Number
+                        </label>
+                        <input
+                          type="tel"
+                          value={phoneNumber}
+                          onChange={(e) => setPhoneNumber(e.target.value)}
+                          className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                          placeholder="+1234567890 (for WhatsApp/Telegram bots)"
+                        />
+                        <p className="text-xs text-gray-400 mt-1">
+                          Used for WhatsApp and Telegram bot integration
+                        </p>
                       </div>
                       <button
                         onClick={saveProfile}

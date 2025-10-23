@@ -4,6 +4,7 @@ export interface Profile {
   avatar_url: string | null;
   email: string | null;
   provider: string | null;
+  phone_number: string | null;
   created_at: string;
   updated_at: string;
 }
