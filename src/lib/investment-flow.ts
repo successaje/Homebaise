@@ -2,11 +2,13 @@ import { Client, PrivateKey, AccountId, TokenId, TransferTransaction, TokenAssoc
 import { supabase } from './supabase';
 import { Property } from '@/types/property';
 import { CreateInvestmentInput, Investment } from '@/types/investment';
+import { getAccountBalance, getHbarUsdPrice, transferHbar } from '@/lib/hedera';
 
 export interface InvestmentFlowResult {
   success: boolean;
   investment?: Investment;
   transactionHash?: string;
+  paymentTxId?: string;
   error?: string;
 }
 
@@ -74,7 +76,36 @@ export class InvestmentFlow {
       // Step 5: Get investor info
       const investorInfo = await this.fetchInvestorInfo(investorId);
 
-      // Step 6: Create pending investment record
+      // Step 6: Payment & Treasury Transfer (HBAR)
+      // Convert USD amount to HBAR using live price, then transfer from investor to treasury
+      const hbarUsdPrice = await getHbarUsdPrice();
+      const hbarNeeded = hbarUsdPrice > 0 ? investmentAmount / hbarUsdPrice : 0;
+      if (hbarNeeded <= 0) {
+        return { success: false, error: 'Failed to compute HBAR amount for this investment' };
+      }
+
+      // Verify investor has sufficient HBAR balance
+      const investorHbarBalance = await getAccountBalance(investorInfo.hedera_account_id!);
+      if (investorHbarBalance < hbarNeeded) {
+        return { success: false, error: `Insufficient HBAR balance. Required: ${hbarNeeded.toFixed(2)} HBAR, Available: ${investorHbarBalance.toFixed(2)} HBAR` };
+      }
+
+      // Perform HBAR transfer from investor to property treasury
+      let paymentTransactionId: string | undefined;
+      try {
+        paymentTransactionId = await transferHbar({
+          client: this.client,
+          fromAccountId: investorInfo.hedera_account_id!,
+          fromPrivateKey: investorInfo.hedera_private_key!,
+          toAccountId: treasuryInfo.hedera_account_id,
+          hbarAmount: hbarNeeded,
+          memo: `Investment payment for property ${propertyId}`
+        });
+      } catch (paymentError: any) {
+        return { success: false, error: `HBAR transfer failed: ${paymentError?.message || 'Unknown error'}` };
+      }
+
+      // Step 7: Create pending investment record
       const investmentData: CreateInvestmentInput = {
         property_id: propertyId,
         amount: investmentAmount,
@@ -108,7 +139,7 @@ export class InvestmentFlow {
         };
       }
 
-      // Step 7: Execute Hedera token transfer
+      // Step 8: Execute Hedera token transfer (ensure association, then transfer tokens)
       let transactionHash: string;
       try {
         transactionHash = await this.transferTokens(
@@ -128,7 +159,7 @@ export class InvestmentFlow {
         };
       }
 
-      // Step 8: Update investment as completed
+      // Step 9: Update investment as completed (store token transfer tx as transaction_hash)
       const { data: updatedInvestment, error: updateError } = await supabase
         .from('investments')
         .update({
@@ -154,13 +185,31 @@ export class InvestmentFlow {
         // Investment was successful but status update failed - still return success
       }
 
-      // Step 9: Update treasury balance
+      // Step 10: Update treasury balance
       await this.updateTreasuryBalance(propertyId, treasuryInfo.token_balance - tokensToPurchase);
+
+      // Step 11: Record to HCS (placeholder - implement HCS topic submit if configured)
+      try {
+        await supabase
+          .from('investment_events')
+          .insert({
+            property_id: propertyId,
+            investor_id: investorId,
+            amount_usd: investmentAmount,
+            tokens: tokensToPurchase,
+            payment_tx_id: paymentTransactionId,
+            token_tx_id: transactionHash,
+            created_at: new Date().toISOString()
+          });
+      } catch (e) {
+        // non-fatal
+      }
 
       return {
         success: true,
         investment: updatedInvestment || investment,
-        transactionHash
+        transactionHash,
+        paymentTxId: paymentTransactionId
       };
 
     } catch (error: any) {

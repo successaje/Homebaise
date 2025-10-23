@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
       .eq('property_id', property_id)
       .single();
 
-    if (investmentDetails && tokens_purchased > investmentDetails.tokens_available) {
+    if (investmentDetails && tokens_purchased > investmentDetails.token_balance) {
       return NextResponse.json(
         { error: 'Insufficient tokens available' },
         { status: 400 }
