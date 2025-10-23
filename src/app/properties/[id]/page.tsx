@@ -8,6 +8,8 @@ import MagneticEffect from '@/components/MagneticEffect';
 import ScrollAnimations from '@/components/ScrollAnimations';
 import PropertyCertificate from '@/components/PropertyCertificate';
 import AIInsightsModal from '@/components/ai/AIInsightsModal';
+import PropertyActivityFeed from '@/components/PropertyActivityFeed';
+import { TransparencySection } from '@/components/TransparencyBadge';
 import Link from 'next/link';
 import { createClient } from '@supabase/supabase-js';
 import { toast } from 'react-hot-toast';
@@ -39,6 +41,7 @@ const PropertyDetailPage = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showAIInsights, setShowAIInsights] = useState(false);
   const [tokenId, setTokenId] = useState<string | null>(null);
+  const [topicId, setTopicId] = useState<string | null>(null);
 
   // Helper functions
   const getPropertyTypeIcon = (type: string | null) => {
@@ -151,7 +154,7 @@ const PropertyDetailPage = () => {
             ] = await Promise.all([
               supabase
                 .from('property_treasury_accounts')
-                .select('token_id, token_balance')
+                .select('token_id, token_balance, topic_id')
                 .eq('property_id', data.id)
                 .single(),
               getPropertyTokenBalance(data.id)
@@ -166,6 +169,7 @@ const PropertyDetailPage = () => {
             
             setProperty(updatedProperty);
             setTokenId(treasuryData?.token_id || null);
+            setTopicId(treasuryData?.topic_id || null);
             
             if (treasuryError) {
               console.log('No treasury account found for property:', treasuryError.message);
@@ -523,7 +527,9 @@ const PropertyDetailPage = () => {
                     
                     <div className="flex justify-between items-center">
                       <span className="text-gray-400">Token Price</span>
-                      <span className="text-white font-semibold">$1.00 (1:1 ratio)</span>
+                      <span className="text-white font-semibold">
+                        {property.token_price ? formatCurrency(property.token_price) : '$1.00'} (1:1 ratio)
+                      </span>
                     </div>
                     
                     <div className="flex justify-between items-center">
@@ -534,11 +540,20 @@ const PropertyDetailPage = () => {
                     </div>
                     
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-400">Expected Return</span>
+                      <span className="text-gray-400">Expected Annual Return</span>
                       <span className="text-emerald-400 font-semibold">
                         {property.yield_rate && property.property_details?.appreciation_rate
                           ? `${(parseFloat(property.yield_rate) + parseFloat(property.property_details.appreciation_rate)).toLocaleString('en-US')}%`
                           : property.yield_rate ? `${parseFloat(property.yield_rate).toLocaleString('en-US')}%` : 'N/A'}
+                      </span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-400">Expected Monthly Return</span>
+                      <span className="text-emerald-400 font-semibold">
+                        {property.yield_rate && property.total_value
+                          ? formatCurrency((parseFloat(property.yield_rate) / 100) * property.total_value / 12)
+                          : 'N/A'}
                       </span>
                     </div>
                     
@@ -758,6 +773,27 @@ const PropertyDetailPage = () => {
               </div>
             </div>
           </ScrollAnimations>
+
+          {/* Transparency Section */}
+          {topicId && (
+            <ScrollAnimations animationType="fade-in-up" delay={400}>
+              <div className="mb-8">
+                <TransparencySection topicId={topicId} />
+              </div>
+            </ScrollAnimations>
+          )}
+
+          {/* Activity Feed */}
+          {property && (
+            <ScrollAnimations animationType="fade-in-up" delay={500}>
+              <div className="mb-8">
+                <PropertyActivityFeed 
+                  propertyId={property.id} 
+                  topicId={topicId || undefined}
+                />
+              </div>
+            </ScrollAnimations>
+          )}
         </div>
       </div>
 

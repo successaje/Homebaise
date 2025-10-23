@@ -3,6 +3,11 @@ import { supabase } from './supabase';
 import { Property } from '@/types/property';
 import { CreateInvestmentInput, Investment } from '@/types/investment';
 import { getAccountBalance, getHbarUsdPrice, transferHbar } from '@/lib/hedera';
+import { 
+  logInvestmentEvent, 
+  logTokenTransferEvent,
+  getHashScanTransactionUrl 
+} from '@/lib/hedera-hcs';
 
 export interface InvestmentFlowResult {
   success: boolean;
@@ -188,21 +193,71 @@ export class InvestmentFlow {
       // Step 10: Update treasury balance
       await this.updateTreasuryBalance(propertyId, treasuryInfo.token_balance - tokensToPurchase);
 
-      // Step 11: Record to HCS (placeholder - implement HCS topic submit if configured)
+      // Step 10.5: Update property financial data
+      await this.updatePropertyFinancials(propertyId, investmentAmount, tokensToPurchase);
+
+      // Step 11: Log events to HCS for transparency
       try {
-        await supabase
-          .from('investment_events')
-          .insert({
-            property_id: propertyId,
-            investor_id: investorId,
-            amount_usd: investmentAmount,
-            tokens: tokensToPurchase,
-            payment_tx_id: paymentTransactionId,
-            token_tx_id: transactionHash,
-            created_at: new Date().toISOString()
-          });
-      } catch (e) {
-        // non-fatal
+        console.log('🔍 Starting HCS event logging for property:', propertyId);
+        
+        // Get topic_id from treasury account
+        const { data: treasuryData, error: treasuryError } = await supabase
+          .from('property_treasury_accounts')
+          .select('topic_id, token_id, status')
+          .eq('property_id', propertyId)
+          .single();
+
+        console.log('📋 Treasury data query result:', { treasuryData, treasuryError });
+
+        if (treasuryError) {
+          console.error('❌ Failed to fetch treasury data for HCS logging:', treasuryError);
+          return;
+        }
+
+        if (treasuryData?.topic_id) {
+          console.log('✅ Found HCS topic:', treasuryData.topic_id);
+          
+          // Log investment event to HCS
+          console.log('📝 Logging investment event to HCS...');
+          const investmentTxId = await logInvestmentEvent(
+            propertyId,
+            treasuryData.topic_id,
+            investorInfo.hedera_account_id!,
+            hbarNeeded,
+            paymentTransactionId!,
+            {
+              tokens_purchased: tokensToPurchase,
+              usd_amount: investmentAmount,
+              token_transfer_tx: tokenTxId
+            }
+          );
+          console.log('✅ Investment event logged to HCS:', investmentTxId);
+
+          // Log token transfer event to HCS
+          console.log('📝 Logging token transfer event to HCS...');
+          const transferTxId = await logTokenTransferEvent(
+            propertyId,
+            treasuryData.topic_id,
+            treasuryInfo.hedera_account_id,
+            investorInfo.hedera_account_id!,
+            tokensToPurchase,
+            tokenTxId
+          );
+          console.log('✅ Token transfer event logged to HCS:', transferTxId);
+
+          console.log('🎉 All investment events successfully logged to HCS');
+        } else {
+          console.warn('⚠️ No HCS topic found for property, skipping HCS logging');
+          console.log('📋 Treasury data:', treasuryData);
+        }
+      } catch (hcsError) {
+        console.error('❌ Failed to log events to HCS:', hcsError);
+        console.error('📋 HCS Error details:', {
+          propertyId,
+          error: hcsError instanceof Error ? hcsError.message : 'Unknown error',
+          stack: hcsError instanceof Error ? hcsError.stack : undefined
+        });
+        // Don't fail the investment if HCS logging fails
       }
 
       return {
@@ -447,6 +502,57 @@ export class InvestmentFlow {
     if (error) {
       console.error('Failed to update treasury balance:', error);
       // Don't throw - this is not critical for the investment flow
+    }
+  }
+
+  /**
+   * Update property financial data after successful investment
+   */
+  private async updatePropertyFinancials(
+    propertyId: string,
+    investmentAmount: number,
+    tokensPurchased: number
+  ): Promise<void> {
+    try {
+      // Get current property data
+      const { data: property, error: propertyError } = await supabase
+        .from('properties')
+        .select('total_value, funded_amount_usd, token_price')
+        .eq('id', propertyId)
+        .single();
+
+      if (propertyError || !property) {
+        console.error('Failed to fetch property data for financial update:', propertyError);
+        return;
+      }
+
+      // Calculate new financial metrics
+      const currentFundedAmount = property.funded_amount_usd || 0;
+      const newFundedAmount = currentFundedAmount + investmentAmount;
+      const totalValue = property.total_value || 1; // Avoid division by zero
+      const fundedPercent = (newFundedAmount / totalValue) * 100;
+      
+      // Set token price to $1 (1:1 ratio)
+      const tokenPrice = 1.0;
+
+      // Update property with new financial data
+      const { error: updateError } = await supabase
+        .from('properties')
+        .update({
+          funded_amount_usd: newFundedAmount,
+          funded_percent: Math.min(fundedPercent, 100), // Cap at 100%
+          token_price: tokenPrice,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', propertyId);
+
+      if (updateError) {
+        console.error('Failed to update property financials:', updateError);
+      } else {
+        console.log('✅ Property financials updated successfully');
+      }
+    } catch (error) {
+      console.error('Error updating property financials:', error);
     }
   }
 }

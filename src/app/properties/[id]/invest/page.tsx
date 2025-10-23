@@ -46,6 +46,9 @@ export default function InvestPage() {
     kycVerified: false,
   });
 
+  // Computed boolean for KYC verification
+  const isKycVerified: boolean = Boolean(form.kycVerified);
+
   useEffect(() => {
     const init = async () => {
       try {
@@ -247,7 +250,7 @@ export default function InvestPage() {
       return false;
     }
     
-    if (!form.kycVerified) {
+    if (!isKycVerified) {
       alert('KYC verification is required to invest');
       return false;
     }
@@ -582,7 +585,7 @@ export default function InvestPage() {
                   )}
 
                   {/* KYC Warning */}
-                  {!form.kycVerified && (
+                  {!isKycVerified && (
                     <div className="mb-6 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
                       <div className="flex items-center space-x-2 text-yellow-400 mb-2">
                         <span>⚠️</span>
@@ -601,7 +604,7 @@ export default function InvestPage() {
                   <MagneticEffect>
                     <button
                       onClick={handleInvest}
-                      disabled={investing || !(form.kycVerified === true) || !form.termsAccepted || form.amount === 0 || (property?.token_id && !associationApproved)}
+                      disabled={investing || !isKycVerified || !form.termsAccepted || form.amount === 0 || (property?.token_id && !associationApproved)}
                       className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white py-4 px-6 rounded-xl font-semibold hover:shadow-lg hover:shadow-emerald-500/25 transition-all duration-300 hover-lift disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {investing ? (
@@ -764,7 +767,7 @@ export default function InvestPage() {
             propertyName: property.name || property.title || 'Property',
             amount: form.amount,
             tokens: form.tokens,
-            tokenPrice: property.token_price || 0,
+            tokenPrice: property.token_price || 1.0,
             yieldRate: property.yield_rate || '0',
             expectedMonthlyReturn: form.amount * (parseFloat(property.yield_rate || '0') / 100) / 12,
             transactionId: 'tx_' + Math.random().toString(36).substr(2, 9),

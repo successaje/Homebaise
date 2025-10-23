@@ -14,6 +14,8 @@ import UserAvatar from '@/components/UserAvatar'
 import UserCertificates from '@/components/UserCertificates'
 import UserProperties from '@/components/UserProperties'
 import CopyButton from '@/components/CopyButton'
+import DashboardActivityFeed from '@/components/DashboardActivityFeed'
+import DashboardStats from '@/components/DashboardStats'
 import { useRouter } from 'next/navigation'
 
 const supabase = createClient(
@@ -228,7 +230,10 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Quick Stats */}
+            {/* HCS-Powered Dashboard Stats */}
+            <DashboardStats userId={session.user.id} className="mb-8" />
+
+            {/* Account Status Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               <div className="bg-white/5 backdrop-blur-xl rounded-xl p-6 border border-white/10">
                 <div className="flex items-center justify-between">
@@ -366,36 +371,13 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Recent Activity */}
-            <div className="mt-8 bg-white/5 backdrop-blur-xl rounded-2xl p-8 border border-white/10">
-              <h2 className="text-2xl font-bold text-white mb-6">Recent Activity</h2>
-              <div className="space-y-4">
-                <div className="flex items-center space-x-4 p-4 bg-white/5 rounded-lg">
-                  <div className="w-10 h-10 bg-emerald-500/20 rounded-lg flex items-center justify-center">
-                    <span className="text-emerald-400">✓</span>
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-white font-medium">Profile updated</p>
-                    <p className="text-gray-400 text-sm">Your profile information was updated</p>
-                  </div>
-                  <span className="text-gray-400 text-sm">Just now</span>
-                </div>
-                
-                {profile.created_at && (
-                  <div className="flex items-center space-x-4 p-4 bg-white/5 rounded-lg">
-                    <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center">
-                      <span className="text-blue-400">🎉</span>
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-white font-medium">Account created</p>
-                      <p className="text-gray-400 text-sm">Welcome to Homebaise!</p>
-                    </div>
-                    <span className="text-gray-400 text-sm">
-                      {new Date(profile.created_at).toLocaleDateString()}
-                    </span>
-                  </div>
-                )}
-              </div>
+            {/* HCS-Powered Activity Feed */}
+            <div className="mt-8">
+              <DashboardActivityFeed 
+                userId={session.user.id} 
+                limit={15}
+                showHeader={true}
+              />
             </div>
 
 

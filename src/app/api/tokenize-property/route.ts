@@ -8,6 +8,11 @@ import {
   MintedToken,
   TreasuryAccount
 } from '@/lib/hedera-treasury';
+import { 
+  createPropertyTopic, 
+  logPropertyCreationEvent,
+  getHashScanTopicUrl 
+} from '@/lib/hedera-hcs';
 import { Client, PrivateKey } from '@hashgraph/sdk';
 
 // Define the property type with existing columns
@@ -231,6 +236,11 @@ export async function POST(request: NextRequest) {
       // Create a Hedera treasury account for the property
       const treasuryAccount = await createPropertyTreasuryAccount(client);
 
+      // Create HCS topic for transparent event logging
+      console.log('Creating HCS topic for property transparency...');
+      const topicId = await createPropertyTopic(propertyId);
+      console.log(`✅ HCS topic created: ${topicId}`);
+
       // Create the token based on the token type
       let tokenResult: MintedToken;
       
@@ -293,6 +303,7 @@ export async function POST(request: NextRequest) {
           hedera_private_key: treasuryAccount.privateKey,
           token_id: tokenResult.tokenId,
           token_type: tokenType,
+          topic_id: topicId, // Add HCS topic ID
           initial_balance_hbar: Number(treasuryAccount.initialBalance.toTinybars()) / 1e8,
           token_balance: tokenType === 'NON_FUNGIBLE' ? 1 : (tokenResult as any).totalSupply || 0,
           status: 'active',
@@ -332,6 +343,21 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // Log property creation event to HCS
+      try {
+        console.log('Logging property creation event to HCS...');
+        await logPropertyCreationEvent(propertyId, topicId, {
+          name: property.title || 'Property',
+          location: property.location || 'Unknown',
+          total_value: property.total_value || 0,
+          token_symbol: tokenSymbol || 'HPROP'
+        });
+        console.log('✅ Property creation event logged to HCS');
+      } catch (hcsError) {
+        console.error('⚠️ Failed to log property creation event to HCS:', hcsError);
+        // Don't fail the entire tokenization if HCS logging fails
+      }
+
       return NextResponse.json({
         success: true,
         message: `Property successfully tokenized as ${tokenType}`,
@@ -350,6 +376,10 @@ export async function POST(request: NextRequest) {
           status: 'tokenized',
           certificateNumber: `CERT-${Date.now()}`,
           issuedAt: new Date().toISOString()
+        },
+        hcs: {
+          topicId: topicId,
+          hashScanUrl: getHashScanTopicUrl(topicId)
         }
       });
     } catch (error) {
