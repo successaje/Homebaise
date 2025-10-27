@@ -2,7 +2,6 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  swcMinify: true,
   webpack: (config, { isServer, dev }) => {
     // Add fallbacks for Node.js modules for client-side
     if (!isServer) {
