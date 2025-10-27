@@ -3,7 +3,7 @@
  * Handles order creation, matching, and trade execution with Hedera integration
  */
 
-import { Client, PrivateKey, AccountId, TokenId, TransferTransaction, Hbar } from '@hashgraph/sdk';
+import { Client, PrivateKey, AccountId, TransferTransaction, Hbar } from '@hashgraph/sdk';
 import { supabase } from './supabase';
 import { ensureTokenAssociation, transferFungible } from './hedera';
 import {
@@ -58,7 +58,7 @@ export class MarketplaceTradingService {
       const total_price = input.token_amount * input.price_per_token;
 
       // Create order
-      const orderData: any = {
+      const orderData: Partial<MarketplaceOrder> = {
         property_id: input.property_id,
         token_id: input.token_id,
         order_type: input.order_type,
@@ -95,9 +95,9 @@ export class MarketplaceTradingService {
       await this.tryMatchOrders(order as MarketplaceOrder);
 
       return { success: true, order: order as MarketplaceOrder };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error in createOrder:', error);
-      return { success: false, error: error.message };
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
 
@@ -142,9 +142,9 @@ export class MarketplaceTradingService {
       }
 
       return { success: true };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error canceling order:', error);
-      return { success: false, error: error.message };
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
 
@@ -322,19 +322,19 @@ export class MarketplaceTradingService {
 
         return { success: true, trade: completedTrade as MarketplaceTrade };
 
-      } catch (hederaError: any) {
+      } catch (hederaError: unknown) {
         // Mark trade as failed
         await supabase
           .from('marketplace_trades')
           .update({ status: 'failed' })
           .eq('id', trade.id);
 
-        return { success: false, error: `Trade execution failed: ${hederaError.message}` };
+        return { success: false, error: `Trade execution failed: ${hederaError instanceof Error ? hederaError.message : 'Unknown error'}` };
       }
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error executing trade:', error);
-      return { success: false, error: error.message };
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
 
@@ -462,7 +462,7 @@ export class MarketplaceTradingService {
   static async getMarketDepth(propertyId: string): Promise<MarketDepthChart> {
     const orderBook = await this.getOrderBook(propertyId);
 
-    const calculateDepth = (orders: OrderBookEntry[], isAsk: boolean): MarketDepth[] => {
+    const calculateDepth = (orders: OrderBookEntry[]): MarketDepth[] => {
       let cumulative = 0;
       return orders.map(order => {
         cumulative += order.total_amount;

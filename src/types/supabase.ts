@@ -1,13 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 
-type Json =
-  | string
-  | number
-  | boolean
-  | null
-  | { [key: string]: Json | undefined }
-  | Json[]
-
 export interface Database {
   public: {
     Tables: {

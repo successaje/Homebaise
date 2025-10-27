@@ -106,7 +106,7 @@ export async function getCurrentUserProfile(): Promise<ProfileRow | null> {
   }
 }
 
-export async function ensureProfileExists(user: any): Promise<ProfileRow | null> {
+export async function ensureProfileExists(user: { id: string; email?: string; user_metadata?: { full_name?: string; name?: string; avatar_url?: string }; app_metadata?: { provider?: string } }): Promise<ProfileRow | null> {
   try {
     console.log('ensureProfileExists - Starting for user:', user.id)
     
@@ -205,7 +205,7 @@ export async function testSupabaseConnection(): Promise<{ success: boolean; erro
     console.log('testSupabaseConnection - Environment variables check passed')
 
     // Test basic connection
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('profiles')
       .select('count')
       .limit(1)

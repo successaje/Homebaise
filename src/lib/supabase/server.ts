@@ -31,7 +31,7 @@ export const createClient = async () => {
           sameSite: options?.sameSite as 'lax' | 'strict' | 'none' || 'lax',
           secure: process.env.NODE_ENV === 'production',
           httpOnly: true,
-        } as any)
+        } as CookieOptions)
       } catch (error) {
         console.error('Error setting cookie:', error)
       }
@@ -47,7 +47,7 @@ export const createClient = async () => {
           sameSite: options?.sameSite as 'lax' | 'strict' | 'none' || 'lax',
           secure: process.env.NODE_ENV === 'production',
           httpOnly: true,
-        } as any)
+        } as CookieOptions)
       } catch (error) {
         console.error('Error removing cookie:', error)
       }
@@ -60,8 +60,8 @@ export const createClient = async () => {
     {
       cookies: {
         get: (name: string) => cookieManager.get(name),
-        set: (name: string, value: string, options: any) => cookieManager.set(name, value, options),
-        remove: (name: string, options: any) => cookieManager.remove(name, options)
+        set: (name: string, value: string, options: Omit<CookieOptions, 'name' | 'value'>) => cookieManager.set(name, value, options),
+        remove: (name: string, options: Omit<CookieOptions, 'name' | 'value'>) => cookieManager.remove(name, options)
       },
     }
   )
