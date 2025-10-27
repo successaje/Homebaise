@@ -2,14 +2,17 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { getPropertyById, Property } from '@/data/mockProperties';
+import { Property } from '@/types/property';
 import { formatNumber, formatCurrency, getPropertyTypeLabel, getCountryFlag } from '@/lib/utils';
 import MagneticEffect from '@/components/MagneticEffect';
 import ScrollAnimations from '@/components/ScrollAnimations';
 import InvestmentConfirmation from '@/components/InvestmentConfirmation';
-import PaymentProcessor from '@/components/PaymentProcessor';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import { InvestmentService } from '@/lib/investment';
+import { getHbarUsdPrice, getAccountBalance, ensureTokenAssociation } from '@/lib/hedera';
+import { Client } from '@hashgraph/sdk';
+import HederaAccountCreator from '@/components/HederaAccountCreator';
 
 interface InvestmentForm {
   amount: number;
@@ -26,9 +29,15 @@ export default function InvestPage() {
   const [loading, setLoading] = useState(true);
   const [investing, setInvesting] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
-  const [showPaymentProcessor, setShowPaymentProcessor] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
+  const [availableTokens, setAvailableTokens] = useState<number>(0);
+  const [hbarPrice, setHbarPrice] = useState<number>(0);
+  const [hbarEquivalent, setHbarEquivalent] = useState<number>(0);
+  const [walletHbarBalance, setWalletHbarBalance] = useState<number>(0);
+  const [associationApproved, setAssociationApproved] = useState<boolean>(false);
+  const [associating, setAssociating] = useState<boolean>(false);
+  const [showHederaCreator, setShowHederaCreator] = useState<boolean>(false);
   const [form, setForm] = useState<InvestmentForm>({
     amount: 0,
     tokens: 0,
@@ -37,60 +46,164 @@ export default function InvestPage() {
     kycVerified: false,
   });
 
+  // Computed boolean for KYC verification
+  const isKycVerified: boolean = Boolean(form.kycVerified);
+
   useEffect(() => {
     const init = async () => {
-      // Get property
-      if (params.id) {
-        const foundProperty = getPropertyById(params.id as string);
-        if (foundProperty) {
-          setProperty(foundProperty);
-        } else {
-          router.push('/properties');
+      try {
+        setLoading(true);
+        
+        // Get property from Supabase
+        if (params.id) {
+          const { data: propertyData, error } = await supabase
+            .from('properties')
+            .select('*')
+            .eq('id', params.id)
+            .single();
+            
+          if (error || !propertyData) {
+            console.error('Error fetching property:', error);
+            router.push('/properties');
+            return;
+          }
+          
+          // Get token_id from treasury accounts
+          try {
+            const { data: treasuryData, error: treasuryError } = await supabase
+              .from('property_treasury_accounts')
+              .select('token_id')
+              .eq('property_id', propertyData.id)
+              .single();
+            
+            if (!treasuryError && treasuryData?.token_id) {
+              // Add token_id to property data
+              propertyData.token_id = treasuryData.token_id;
+            }
+          } catch (error) {
+            console.error('Error fetching treasury data:', error);
+          }
+          
+          setProperty(propertyData as Property);
+          
+          // Get available tokens from treasury account balance
+          try {
+            const tokens = await InvestmentService.getAvailableTokens(propertyData.id);
+            setAvailableTokens(tokens);
+          } catch (error) {
+            console.error('Error fetching available tokens from treasury:', error);
+            setAvailableTokens(0);
+          }
+        }
+
+        // Get user session
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          router.push('/auth');
           return;
         }
+        setUser(session.user);
+
+        // Get user profile
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
+        if (profile) {
+          setUserProfile(profile);
+          setForm(prev => ({
+            ...prev,
+            kycVerified: Boolean(profile.kyc_status === 'verified')
+          }));
+
+          // Fetch HBAR price and wallet balance
+          try {
+            const price = await getHbarUsdPrice();
+            setHbarPrice(price);
+          } catch {}
+
+          try {
+            if (profile.wallet_address) {
+              const bal = await getAccountBalance(profile.wallet_address);
+              setWalletHbarBalance(bal);
+            }
+          } catch (e) {
+            console.error('Failed to fetch Hedera wallet balance', e);
+          }
+        }
+      } catch (error) {
+        console.error('Error in invest page initialization:', error);
+        router.push('/properties');
+      } finally {
+        setLoading(false);
       }
-
-      // Get user session
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        router.push('/auth');
-        return;
-      }
-      setUser(session.user);
-
-      // Get user profile
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', session.user.id)
-        .single();
-
-      if (profile) {
-        setUserProfile(profile);
-        setForm(prev => ({
-          ...prev,
-          kycVerified: profile.kyc_status === 'verified'
-        }));
-      }
-
-      setLoading(false);
     };
 
     init();
   }, [params.id, router]);
 
+  const handleHederaAccountCreated = async (accountId: string, evmAddress: string) => {
+    // Refresh user profile to get the new Hedera account details
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
+        if (profile) {
+          setUserProfile(profile);
+          setShowHederaCreator(false);
+          
+          // Fetch wallet balance for the new account
+          try {
+            const bal = await getAccountBalance(profile.wallet_address);
+            setWalletHbarBalance(bal);
+          } catch (e) {
+            console.error('Failed to fetch new Hedera wallet balance', e);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error refreshing profile after Hedera account creation:', error);
+    }
+  };
+
   const calculateTokens = (amount: number) => {
-    if (!property) return 0;
-    return Math.floor(amount / property.tokenPriceUSD);
+    // 1:1 ratio - $1 = 1 token
+    return amount;
   };
 
   const calculateAmount = (tokens: number) => {
+    // 1:1 ratio - 1 token = $1
+    return tokens;
+  };
+  
+  // Get available tokens or 0 if not available
+  const getAvailableTokens = async () => {
     if (!property) return 0;
-    return tokens * property.tokenPriceUSD;
+    try {
+      return await InvestmentService.getAvailableTokens(property.id);
+    } catch (error) {
+      console.error('Error fetching available tokens:', error);
+      // Fallback calculation
+      if (property.total_value && property.token_price) {
+        const totalTokens = Math.floor(property.total_value / property.token_price);
+        const soldTokens = Math.floor((property.funded_amount_usd || 0) / property.token_price);
+        return Math.max(0, totalTokens - soldTokens);
+      }
+      return 0;
+    }
   };
 
   const handleAmountChange = (amount: number) => {
     const tokens = calculateTokens(amount);
+    // Update HBAR equivalent using current price
+    setHbarEquivalent(hbarPrice > 0 ? amount / hbarPrice : 0);
     setForm(prev => ({
       ...prev,
       amount,
@@ -100,6 +213,7 @@ export default function InvestPage() {
 
   const handleTokensChange = (tokens: number) => {
     const amount = calculateAmount(tokens);
+    setHbarEquivalent(hbarPrice > 0 ? amount / hbarPrice : 0);
     setForm(prev => ({
       ...prev,
       tokens,
@@ -107,21 +221,27 @@ export default function InvestPage() {
     }));
   };
 
-  const validateForm = () => {
-    if (!property) return false;
-    
-    if (form.amount < property.minInvestment) {
-      alert(`Minimum investment is ${formatCurrency(property.minInvestment)}`);
+  const validateForm = async () => {
+    if (!property) {
+      alert('Property not found');
       return false;
     }
     
-    if (form.amount > property.maxInvestment) {
-      alert(`Maximum investment is ${formatCurrency(property.maxInvestment)}`);
+    // Use InvestmentService validation
+    const validation = InvestmentService.validateInvestment(
+      form.amount,
+      form.tokens,
+      property
+    );
+    
+    if (!validation.valid) {
+      alert(validation.error);
       return false;
     }
     
-    if (form.amount > form.tokens * property.tokenPriceUSD) {
-      alert('Insufficient tokens available');
+    // Check available tokens
+    if (form.tokens > availableTokens) {
+      alert(`Only ${availableTokens.toLocaleString()} tokens available`);
       return false;
     }
     
@@ -130,49 +250,74 @@ export default function InvestPage() {
       return false;
     }
     
-    if (!form.kycVerified) {
+    if (!isKycVerified) {
       alert('KYC verification is required to invest');
       return false;
     }
+
+    // Verify sufficient HBAR balance
+    if (hbarEquivalent > 0 && walletHbarBalance > 0 && hbarEquivalent > walletHbarBalance) {
+      alert(`Insufficient HBAR balance. Required: ${hbarEquivalent.toFixed(2)} HBAR, Available: ${walletHbarBalance.toFixed(2)} HBAR`);
+      return false;
+    }
     
+    // Require token association approval before proceeding
+    if (!associationApproved) {
+      alert('Please associate the property token with your wallet before investing.');
+      return false;
+    }
+
     return true;
   };
 
   const handleInvest = async () => {
-    if (!validateForm()) return;
+    const isValid = await validateForm();
+    if (!isValid) return;
     
-    setShowPaymentProcessor(true);
-  };
-
-  const handlePaymentSuccess = async (transactionId: string) => {
-    setShowPaymentProcessor(false);
     setInvesting(true);
-    
     try {
-      // Simulate investment processing
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      if (!property || !user) {
+        throw new Error('Missing property or user data');
+      }
+
+      // Use the proper Hedera investment flow
+      const { InvestmentFlow } = await import('@/lib/investment-flow');
       
-      // In a real app, this would:
-      // 1. Create investment record in database
-      // 2. Update property token availability
-      // 3. Send confirmation email
+      // Get operator credentials
+      const operatorId = process.env.NEXT_PUBLIC_MY_ACCOUNT_ID || process.env.MY_ACCOUNT_ID;
+      const operatorKey = process.env.NEXT_PUBLIC_MY_PRIVATE_KEY || process.env.MY_PRIVATE_KEY;
       
-      setShowConfirmation(true);
+      if (!operatorId || !operatorKey) {
+        throw new Error('Missing operator credentials');
+      }
+
+      // Create investment flow instance
+      const investmentFlow = new InvestmentFlow();
+      
+      // Execute the investment
+      const result = await investmentFlow.executeInvestment(
+        property.id,
+        user.id,
+        form.amount
+      );
+
+      if (result.success) {
+        // Update available tokens
+        const newAvailableTokens = await InvestmentService.getAvailableTokens(property.id);
+        setAvailableTokens(newAvailableTokens);
+        
+        setShowConfirmation(true);
+      } else {
+        throw new Error(result.error || 'Investment failed');
+      }
     } catch (error) {
-      alert('Investment failed. Please try again.');
+      console.error('Investment failed:', error);
+      alert(`Investment failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setInvesting(false);
     }
   };
 
-  const handlePaymentError = (error: string) => {
-    setShowPaymentProcessor(false);
-    alert(error);
-  };
-
-  const handlePaymentCancel = () => {
-    setShowPaymentProcessor(false);
-  };
 
   if (loading) {
     return (
@@ -183,10 +328,23 @@ export default function InvestPage() {
   }
 
   if (!property) {
-    return null;
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-white mb-2">Property Not Found</h2>
+          <p className="text-gray-400 mb-4">The property you're looking for doesn't exist or has been removed.</p>
+          <Link 
+            href="/properties" 
+            className="inline-flex items-center px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+          >
+            Back to Properties
+          </Link>
+        </div>
+      </div>
+    );
   }
 
-  const getPropertyTypeIcon = (type: Property['propertyType']) => {
+  const getPropertyTypeIcon = (type: string | null | undefined) => {
     switch (type) {
       case 'residential':
         return '🏠';
@@ -238,9 +396,9 @@ export default function InvestPage() {
               </div>
               
               <div className="flex items-center space-x-4">
-                <span className="text-4xl">{getPropertyTypeIcon(property.propertyType)}</span>
+                <span className="text-4xl">{getPropertyTypeIcon(property.property_type)}</span>
                 <div>
-                  <h1 className="text-3xl font-bold text-white mb-1">Invest in {property.name}</h1>
+                  <h1 className="text-3xl font-bold text-white mb-1">Invest in {property.name || property.title}</h1>
                   <p className="text-gray-400 flex items-center">
                     <span className="mr-2">📍</span>
                     {property.location}
@@ -264,15 +422,19 @@ export default function InvestPage() {
                       type="number"
                       value={form.amount || ''}
                       onChange={(e) => handleAmountChange(Number(e.target.value))}
-                      min={property.minInvestment}
-                      max={property.maxInvestment}
-                      step={property.tokenPriceUSD}
+                      min={Math.max(10, property.min_investment || 10)}
+                      max={property.max_investment || Infinity}
+                      step={1}
                       className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                      placeholder={`Min: ${formatCurrency(property.minInvestment)}`}
+                      placeholder={`Min: ${formatCurrency(Math.max(10, property.min_investment || 10))}`}
                     />
+                  <div className="flex justify-between text-sm text-gray-400 mt-2">
+                    <span>HBAR Price: {hbarPrice ? `$${hbarPrice.toFixed(4)}/HBAR` : '...'}</span>
+                    <span>≈ {hbarEquivalent ? hbarEquivalent.toFixed(4) : '0.0000'} HBAR</span>
+                  </div>
                     <div className="flex justify-between text-sm text-gray-400 mt-2">
-                      <span>Min: {formatCurrency(property.minInvestment)}</span>
-                      <span>Max: {formatCurrency(property.maxInvestment)}</span>
+                      <span>Min: {formatCurrency(Math.max(10, property.min_investment || 10))}</span>
+                      <span>Max: {formatCurrency(property.max_investment || Infinity)}</span>
                     </div>
                   </div>
 
@@ -286,13 +448,16 @@ export default function InvestPage() {
                       value={form.tokens || ''}
                       onChange={(e) => handleTokensChange(Number(e.target.value))}
                       min={1}
-                      max={property.tokensAvailable}
+                      max={availableTokens}
                       className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                       placeholder="Number of tokens"
                     />
                     <div className="text-sm text-gray-400 mt-2">
-                      Available: {property.tokensAvailable.toLocaleString()} tokens
+                      Available: {availableTokens.toLocaleString()} tokens
                     </div>
+                  <div className="text-sm text-gray-400 mt-1">
+                    Requires ≈ {hbarEquivalent ? hbarEquivalent.toFixed(4) : '0.0000'} HBAR
+                  </div>
                   </div>
 
                   {/* Payment Method */}
@@ -344,8 +509,83 @@ export default function InvestPage() {
                     </label>
                   </div>
 
+                  {/* Hedera Account Setup */}
+                  {!userProfile?.wallet_address && (
+                    <div className="mb-6 p-4 bg-orange-500/10 border border-orange-500/20 rounded-xl">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-white font-medium">Hedera Account Required</div>
+                          <div className="text-gray-400 text-sm">You need a Hedera account to invest in tokenized properties</div>
+                        </div>
+                        <button
+                          onClick={() => setShowHederaCreator(true)}
+                          className="px-4 py-2 bg-orange-600 text-white rounded-lg font-semibold hover:bg-orange-700 transition-colors"
+                        >
+                          Create Account
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Token Association */}
+                  {property?.token_id && userProfile?.wallet_address && (
+                    <div className="mb-6 p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-white font-medium">Token Association Required</div>
+                          <div className="text-gray-400 text-sm">
+                            Associate token {property?.token_id || 'N/A'} with your wallet
+                          </div>
+                          <div className="text-gray-500 text-xs mt-1">
+                            Debug: token_id={property?.token_id || 'null'}, wallet_address={userProfile?.wallet_address || 'null'}, property_id={property?.id || 'null'}
+                          </div>
+                        </div>
+                        <button
+                          disabled={associating || associationApproved}
+                          onClick={async () => {
+                            setAssociating(true);
+                            try {
+                              // Check if we have all required data
+                              if (!property?.token_id) {
+                                throw new Error('Property token ID not available');
+                              }
+                              if (!userProfile?.wallet_address) {
+                                throw new Error('User Hedera account not found');
+                              }
+                              if (!userProfile?.hedera_private_key) {
+                                throw new Error('User Hedera private key not found');
+                              }
+
+                              const operatorId = process.env.NEXT_PUBLIC_MY_ACCOUNT_ID || process.env.MY_ACCOUNT_ID;
+                              const operatorKey = process.env.NEXT_PUBLIC_MY_PRIVATE_KEY || process.env.MY_PRIVATE_KEY;
+                              if (!operatorId || !operatorKey) throw new Error('Missing operator credentials');
+                              
+                              const client = Client.forTestnet().setOperator(operatorId, operatorKey);
+                              await ensureTokenAssociation({
+                                client,
+                                userAccountId: userProfile.wallet_address,
+                                userPrivateKey: userProfile.hedera_private_key,
+                                tokenId: property.token_id
+                              });
+                              setAssociationApproved(true);
+                              alert('Token association successful.');
+                            } catch (e: any) {
+                              const msg = e?.message || 'Association failed';
+                              alert(msg);
+                            } finally {
+                              setAssociating(false);
+                            }
+                          }}
+                          className={`px-4 py-2 rounded-lg font-semibold transition-colors ${associationApproved ? 'bg-emerald-600/40 text-white cursor-default' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                        >
+                          {associationApproved ? '✓ Associated' : associating ? 'Associating...' : 'Associate Token'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* KYC Warning */}
-                  {!form.kycVerified && (
+                  {!isKycVerified && (
                     <div className="mb-6 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
                       <div className="flex items-center space-x-2 text-yellow-400 mb-2">
                         <span>⚠️</span>
@@ -364,7 +604,7 @@ export default function InvestPage() {
                   <MagneticEffect>
                     <button
                       onClick={handleInvest}
-                      disabled={investing || !form.kycVerified || !form.termsAccepted || form.amount === 0}
+                      disabled={investing || !isKycVerified || !form.termsAccepted || form.amount === 0 || (property?.token_id && !associationApproved)}
                       className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white py-4 px-6 rounded-xl font-semibold hover:shadow-lg hover:shadow-emerald-500/25 transition-all duration-300 hover-lift disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {investing ? (
@@ -379,6 +619,7 @@ export default function InvestPage() {
                   </MagneticEffect>
                 </div>
               </div>
+
 
               {/* Investment Summary */}
               <div className="space-y-6">
@@ -396,20 +637,25 @@ export default function InvestPage() {
                       <span className="text-white font-semibold">{form.tokens.toLocaleString()}</span>
                     </div>
                     
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-400">HBAR Equivalent</span>
+                    <span className="text-white font-semibold">{hbarEquivalent ? `${hbarEquivalent.toFixed(4)} HBAR` : '...'}</span>
+                  </div>
+
                     <div className="flex justify-between items-center">
                       <span className="text-gray-400">Token Price</span>
-                      <span className="text-white font-semibold">{formatCurrency(property.tokenPriceUSD)}</span>
+                      <span className="text-white font-semibold">$1.00 (1:1 ratio)</span>
                     </div>
                     
                     <div className="flex justify-between items-center">
                       <span className="text-gray-400">Expected Annual Yield</span>
-                      <span className="text-emerald-400 font-semibold">{property.yieldRate}</span>
+                      <span className="text-emerald-400 font-semibold">{property.yield_rate || 'N/A'}</span>
                     </div>
                     
                     <div className="flex justify-between items-center">
                       <span className="text-gray-400">Expected Annual Return</span>
                       <span className="text-emerald-400 font-semibold">
-                        {formatCurrency(form.amount * (parseFloat(property.yieldRate) / 100))}
+                        {property.yield_rate ? formatCurrency(form.amount * (parseFloat(property.yield_rate) / 100)) : 'N/A'}
                       </span>
                     </div>
                   </div>
@@ -423,6 +669,12 @@ export default function InvestPage() {
                         {form.paymentMethod === 'card' && '💳 Credit/Debit Card'}
                       </span>
                     </div>
+                    {userProfile?.hedera_account_id && (
+                      <div className="flex justify-between items-center mt-3">
+                        <span className="text-gray-400">Wallet Balance</span>
+                        <span className="text-white font-semibold">{walletHbarBalance.toFixed(2)} HBAR</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -433,27 +685,32 @@ export default function InvestPage() {
                   <div className="space-y-3">
                     <div className="flex justify-between items-center">
                       <span className="text-gray-400">Property Type</span>
-                      <span className="text-white">{getPropertyTypeLabel(property.propertyType)}</span>
+                      <span className="text-white">{getPropertyTypeLabel(property.property_type)}</span>
                     </div>
                     
                     <div className="flex justify-between items-center">
                       <span className="text-gray-400">Location</span>
-                      <span className="text-white">{getCountryFlag(property.country)} {property.country}</span>
+                      <span className="text-white">{getCountryFlag(property.country)} {property.city || property.location || 'N/A'}</span>
                     </div>
                     
                     <div className="flex justify-between items-center">
                       <span className="text-gray-400">Total Value</span>
-                      <span className="text-white">{formatNumber(property.totalValueUSD)}</span>
+                      <span className="text-white">{property.total_value ? formatCurrency(property.total_value) : 'N/A'}</span>
                     </div>
                     
                     <div className="flex justify-between items-center">
                       <span className="text-gray-400">Funding Progress</span>
-                      <span className="text-white">{property.fundedPercent}%</span>
+                      <span className="text-white">{property.funded_percent || 0}%</span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-400">Total Tokens</span>
+                      <span className="text-white">{property.total_value ? property.total_value.toLocaleString() : 'N/A'}</span>
                     </div>
                     
                     <div className="flex justify-between items-center">
                       <span className="text-gray-400">Available Tokens</span>
-                      <span className="text-white">{property.tokensAvailable.toLocaleString()}</span>
+                      <span className="text-white">{availableTokens.toLocaleString()}</span>
                     </div>
                   </div>
                 </div>
@@ -507,12 +764,12 @@ export default function InvestPage() {
         <InvestmentConfirmation
           investment={{
             id: 'mock-investment-id',
-            propertyName: property.name,
+            propertyName: property.name || property.title || 'Property',
             amount: form.amount,
             tokens: form.tokens,
-            tokenPrice: property.tokenPriceUSD,
-            yieldRate: property.yieldRate,
-            expectedMonthlyReturn: form.amount * (parseFloat(property.yieldRate) / 100) / 12,
+            tokenPrice: property.token_price || 1.0,
+            yieldRate: property.yield_rate || '0',
+            expectedMonthlyReturn: form.amount * (parseFloat(property.yield_rate || '0') / 100) / 12,
             transactionId: 'tx_' + Math.random().toString(36).substr(2, 9),
             investedAt: new Date().toISOString(),
           }}
@@ -520,15 +777,26 @@ export default function InvestPage() {
         />
       )}
 
-      {/* Payment Processor Modal */}
-      {showPaymentProcessor && property && (
-        <PaymentProcessor
-          amount={form.amount}
-          paymentMethod={form.paymentMethod}
-          onSuccess={handlePaymentSuccess}
-          onError={handlePaymentError}
-          onCancel={handlePaymentCancel}
-        />
+
+      {/* Hedera Account Creator Modal */}
+      {showHederaCreator && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-6 max-w-md w-full">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold text-white">Create Hedera Account</h3>
+              <button
+                onClick={() => setShowHederaCreator(false)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+            <HederaAccountCreator
+              onAccountCreated={handleHederaAccountCreated}
+              className="w-full"
+            />
+          </div>
+        </div>
       )}
     </div>
   );

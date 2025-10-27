@@ -147,9 +147,12 @@ export default function AdminPage() {
         return;
       }
       
-      // In a real app, check if user has admin role
-      // For now, we'll allow any authenticated user to access admin
-      setUser(session.user);
+      // check if user has admin role
+      // For now, allow any authenticated user to access admin
+      setUser({
+        id: session.user.id,
+        email: session.user.email || ''
+      });
       setLoading(false);
     };
 

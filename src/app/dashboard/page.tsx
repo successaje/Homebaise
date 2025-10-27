@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { getCurrentUserProfile, ProfileRow } from '@/lib/profile'
 import { getAccountBalance } from '@/lib/hedera'
+import SendHbarModal from '@/components/SendHbarModal'
 import Link from 'next/link'
 import MagneticEffect from '@/components/MagneticEffect'
 import ScrollAnimations from '@/components/ScrollAnimations'
@@ -13,6 +14,8 @@ import UserAvatar from '@/components/UserAvatar'
 import UserCertificates from '@/components/UserCertificates'
 import UserProperties from '@/components/UserProperties'
 import CopyButton from '@/components/CopyButton'
+import DashboardActivityFeed from '@/components/DashboardActivityFeed'
+import DashboardStats from '@/components/DashboardStats'
 import { useRouter } from 'next/navigation'
 
 const supabase = createClient(
@@ -27,7 +30,25 @@ export default function DashboardPage() {
   const [balance, setBalance] = useState<number | null>(null)
   const [balanceLoading, setBalanceLoading] = useState(false)
   const [balanceError, setBalanceError] = useState<string | null>(null)
+  const [isSendModalOpen, setIsSendModalOpen] = useState(false)
   const router = useRouter()
+
+  // Handle transaction completion
+  const handleTransactionComplete = async (result: any) => {
+    console.log('Transaction completed:', result)
+    // Refresh balance after successful transaction
+    if (profile?.wallet_address) {
+      try {
+        setBalanceLoading(true)
+        const newBalance = await getAccountBalance(profile.wallet_address)
+        setBalance(newBalance)
+      } catch (error) {
+        console.error('Error refreshing balance:', error)
+      } finally {
+        setBalanceLoading(false)
+      }
+    }
+  }
 
   // Fetch user profile and Hedera account balance
   useEffect(() => {
@@ -172,9 +193,20 @@ export default function DashboardPage() {
                   <div className="bg-white/5 rounded-xl p-4 border border-white/10 min-w-[280px]">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-gray-400 text-sm">Hedera Balance</span>
-                      {balanceLoading && (
-                        <span className="text-xs text-gray-400">Updating...</span>
-                      )}
+                      <div className="flex items-center space-x-2">
+                        {balanceLoading && (
+                          <span className="text-xs text-gray-400">Updating...</span>
+                        )}
+                        <button
+                          onClick={() => setIsSendModalOpen(true)}
+                          className="p-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 rounded-lg transition-colors group"
+                          title="Send HBAR"
+                        >
+                          <svg className="w-4 h-4 text-emerald-400 group-hover:text-emerald-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
                     <div className="flex items-baseline space-x-2">
                       <span className="text-2xl font-bold text-white">
@@ -198,7 +230,10 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Quick Stats */}
+            {/* HCS-Powered Dashboard Stats */}
+            <DashboardStats userId={session.user.id} className="mb-8" />
+
+            {/* Account Status Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               <div className="bg-white/5 backdrop-blur-xl rounded-xl p-6 border border-white/10">
                 <div className="flex items-center justify-between">
@@ -336,42 +371,31 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Recent Activity */}
-            <div className="mt-8 bg-white/5 backdrop-blur-xl rounded-2xl p-8 border border-white/10">
-              <h2 className="text-2xl font-bold text-white mb-6">Recent Activity</h2>
-              <div className="space-y-4">
-                <div className="flex items-center space-x-4 p-4 bg-white/5 rounded-lg">
-                  <div className="w-10 h-10 bg-emerald-500/20 rounded-lg flex items-center justify-center">
-                    <span className="text-emerald-400">✓</span>
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-white font-medium">Profile updated</p>
-                    <p className="text-gray-400 text-sm">Your profile information was updated</p>
-                  </div>
-                  <span className="text-gray-400 text-sm">Just now</span>
-                </div>
-                
-                {profile.created_at && (
-                  <div className="flex items-center space-x-4 p-4 bg-white/5 rounded-lg">
-                    <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center">
-                      <span className="text-blue-400">🎉</span>
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-white font-medium">Account created</p>
-                      <p className="text-gray-400 text-sm">Welcome to Homebaise!</p>
-                    </div>
-                    <span className="text-gray-400 text-sm">
-                      {new Date(profile.created_at).toLocaleDateString()}
-                    </span>
-                  </div>
-                )}
-              </div>
+            {/* HCS-Powered Activity Feed */}
+            <div className="mt-8">
+              <DashboardActivityFeed 
+                userId={session.user.id} 
+                limit={15}
+                showHeader={true}
+              />
             </div>
 
 
           </ScrollAnimations>
         </div>
       </div>
+
+      {/* Send HBAR Modal */}
+      {profile?.wallet_address && profile?.hedera_private_key && (
+        <SendHbarModal
+          isOpen={isSendModalOpen}
+          onClose={() => setIsSendModalOpen(false)}
+          senderAccountId={profile.wallet_address}
+          senderPrivateKey={profile.hedera_private_key}
+          currentBalance={balance || 0}
+          onTransactionComplete={handleTransactionComplete}
+        />
+      )}
     </div>
   )
 } 

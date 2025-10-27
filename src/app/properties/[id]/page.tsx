@@ -3,12 +3,17 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { formatNumber, formatCurrency, formatDate, getPropertyTypeLabel, getCountryFlag } from '@/lib/utils';
+import { getPropertyTokenBalance } from '@/lib/hedera-treasury';
 import MagneticEffect from '@/components/MagneticEffect';
 import ScrollAnimations from '@/components/ScrollAnimations';
 import PropertyCertificate from '@/components/PropertyCertificate';
+import AIInsightsModal from '@/components/ai/AIInsightsModal';
+import PropertyActivityFeed from '@/components/PropertyActivityFeed';
+import { TransparencySection } from '@/components/TransparencyBadge';
 import Link from 'next/link';
 import { createClient } from '@supabase/supabase-js';
 import { toast } from 'react-hot-toast';
+import { Property } from '@/types/property';
 
 // Initialize Supabase client outside component
 const supabase = createClient(
@@ -21,46 +26,7 @@ if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_A
   console.error('Missing Supabase environment variables');
 }
 
-// Updated interface to match database schema
-interface Property {
-  id: string;
-  name?: string | null;
-  title?: string | null;
-  description?: string | null;
-  location?: string | null;
-  country?: string | null;
-  city?: string | null;
-  address?: string | null;
-  property_type?: string | null;
-  total_value?: number | null;
-  token_price?: number | null;
-  min_investment?: number | null;
-  max_investment?: number | null;
-  funded_amount_usd?: number | null;
-  funded_percent?: number | null;
-  yield_rate?: string | null;
-  status: string;
-  images?: string[] | null;
-  ipfs_image_cids?: string[] | null;
-  investment_highlights?: string[] | null;
-  property_features?: string[] | null;
-  amenities?: string[] | null;
-  investment_risks?: string[] | null;
-  property_details?: {
-    size?: string;
-    legal_status?: string;
-    occupancy_rate?: string;
-    annual_rental_income?: string;
-    appreciation_rate?: string;
-  } | null;
-  property_manager?: string | null;
-  listed_by: string;
-  created_at: string;
-  updated_at: string;
-  certificate_id?: string | null;
-}
-
-export default function PropertyDetailPage() {
+const PropertyDetailPage = () => {
   const params = useParams();
   const router = useRouter();
   const [property, setProperty] = useState<Property | null>(null);
@@ -73,91 +39,11 @@ export default function PropertyDetailPage() {
   } | null>(null);
   const [isGeneratingCertificate, setIsGeneratingCertificate] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [showAIInsights, setShowAIInsights] = useState(false);
+  const [tokenId, setTokenId] = useState<string | null>(null);
+  const [topicId, setTopicId] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchProperty = async () => {
-      if (!params.id) return;
-      
-      try {
-        setLoading(true);
-        console.log('Fetching property with ID:', params.id);
-        
-        // Debug: List all properties to see what's available
-        const { data: allProperties, error: listError } = await supabase
-          .from('properties')
-          .select('id, name, title')
-          .limit(5);
-        
-        console.log('Available properties (first 5):', allProperties);
-        if (listError) console.log('Error listing properties:', listError);
-        
-        const { data, error } = await supabase
-          .from('properties')
-          .select('*')
-          .eq('id', params.id)
-          .single();
-
-        console.log('Supabase response:', { data, error });
-
-        if (error) {
-          console.error('Error fetching property:', error);
-          toast.error(`Property not found: ${error.message}`);
-          router.push('/properties');
-          return;
-        }
-
-        if (data) {
-          console.log('Property data received:', data);
-          setProperty(data);
-        } else {
-          console.log('No property data received');
-          toast.error('Property not found');
-          router.push('/properties');
-        }
-      } catch (err) {
-        console.error('Unexpected error:', err);
-        toast.error('Failed to load property');
-        router.push('/properties');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchProperty();
-  }, [params.id, router, supabase]);
-
-  // Check authentication status
-  useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setIsAuthenticated(!!user);
-    };
-
-    checkAuth();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setIsAuthenticated(!!session?.user);
-    });
-
-    return () => subscription.unsubscribe();
-  }, [supabase.auth]);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-white">Loading property...</p>
-          <p className="text-gray-400 text-sm">ID: {params.id}</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!property) {
-    return null;
-  }
-
+  // Helper functions
   const getPropertyTypeIcon = (type: string | null) => {
     switch (type) {
       case 'residential':
@@ -221,6 +107,128 @@ export default function PropertyDetailPage() {
     }
   };
 
+  const getTokenId = () => {
+    return tokenId || 'N/A';
+  };
+
+  const getTokenHashScanUrl = () => {
+    return `https://hashscan.io/testnet/token/${getTokenId()}`;
+  };
+
+  const getCertificateHashScanUrl = () => {
+    return `https://hashscan.io/testnet/token/0.0.6755654/${property?.certificate_token_id}`;
+  };
+
+  useEffect(() => {
+    const fetchProperty = async () => {
+      if (!params.id) return;
+      
+      try {
+        setLoading(true);
+        console.log('Fetching property with ID:', params.id);
+        
+        // Fetch property data
+        const { data, error } = await supabase
+          .from('properties')
+          .select('*')
+          .eq('id', params.id)
+          .single();
+
+        console.log('Supabase response:', { data, error });
+
+        if (error) {
+          console.error('Error fetching property:', error);
+          toast.error(`Property not found: ${error.message}`);
+          router.push('/properties');
+          return;
+        }
+
+        if (data) {
+          console.log('Property data received:', data);
+          
+          // Fetch token balance and treasury data
+          try {
+            const [
+              { data: treasuryData, error: treasuryError },
+              tokenBalance
+            ] = await Promise.all([
+              supabase
+                .from('property_treasury_accounts')
+                .select('token_id, token_balance, topic_id')
+                .eq('property_id', data.id)
+                .single(),
+              getPropertyTokenBalance(data.id)
+            ]);
+            
+            // Update property with token data
+            const updatedProperty = {
+              ...data,
+              tokens_available: tokenBalance,
+              token_id: treasuryData?.token_id || null
+            };
+            
+            setProperty(updatedProperty);
+            setTokenId(treasuryData?.token_id || null);
+            setTopicId(treasuryData?.topic_id || null);
+            
+            if (treasuryError) {
+              console.log('No treasury account found for property:', treasuryError.message);
+            }
+          } catch (error) {
+            console.error('Error fetching token balance or treasury data:', error);
+          }
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProperty();
+  }, [params.id, router]);
+
+  // Check authentication status
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setIsAuthenticated(!!user);
+    };
+
+    checkAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setIsAuthenticated(!!session?.user);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [supabase.auth]);
+
+  // Early return for loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-white">Loading property...</p>
+          <p className="text-gray-400 text-sm">ID: {params.id}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Handle case when property is not found
+  if (!property) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-white text-xl">Property not found</p>
+          <Link href="/properties" className="text-emerald-400 hover:underline mt-2 inline-block">
+            Back to Properties
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   const displayName = property.name || property.title || 'Untitled Property';
   const displayLocation = property.city && property.country ? `${property.city}, ${property.country}` : property.location || 'Location not specified';
 
@@ -240,56 +248,6 @@ export default function PropertyDetailPage() {
       const ipfsIndex = index - regularImages;
       return `https://gateway.pinata.cloud/ipfs/${property.ipfs_image_cids![ipfsIndex]}`;
     }
-  };
-
-  const handleGenerateCertificate = async (verificationData: {
-    legalDocsValidated: boolean;
-    ownershipConfirmed: boolean;
-    tokenized: boolean;
-  }) => {
-    setIsGeneratingCertificate(true);
-    try {
-      const response = await fetch('/api/generate-certificate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          propertyId: property?.id,
-          approvalNotes: `Property verified with legal docs: ${verificationData.legalDocsValidated}, ownership: ${verificationData.ownershipConfirmed}, tokenized: ${verificationData.tokenized}`
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP ${response.status}: Failed to generate certificate`);
-      }
-
-      const result = await response.json();
-      setCertificateData(result.certificate);
-    } catch (error) {
-      console.error('Error generating certificate:', error);
-      if (error instanceof Error && error.message.includes('Unauthorized')) {
-        // Handle authentication error specifically
-        toast.error('Please log in to generate certificates');
-      } else {
-        throw error;
-      }
-    } finally {
-      setIsGeneratingCertificate(false);
-    }
-  };
-
-  const isPropertyTokenized = () => {
-    return property?.token_price !== null && property?.min_investment !== null && property?.max_investment !== null;
-  };
-
-  const getTokenId = () => {
-    return property?.certificate_id || 'N/A';
-  };
-
-  const getHashScanUrl = () => {
-    return `https://hashscan.io/polygon/token/${getTokenId()}`;
   };
 
   return (
@@ -316,8 +274,7 @@ export default function PropertyDetailPage() {
       <div className="pt-24 pb-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <ScrollAnimations animationType="fade-in-up">
-            {/* Property Header */}
-            <div className="mb-8">
+            <div className="space-y-8">
               <div className="flex items-center space-x-2 text-gray-400 text-sm mb-4">
                 <Link href="/properties" className="hover:text-white transition-colors">
                   ← Back to Properties
@@ -337,13 +294,13 @@ export default function PropertyDetailPage() {
                   </p>
                 </div>
                 <div className="flex items-center space-x-3">
-                  <span className="text-4xl">{getPropertyTypeIcon(property.property_type)}</span>
+                  <span className="text-4xl">{getPropertyTypeIcon(property.property_type || null)}</span>
                   <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm border ${getStatusColor(property.status)}`}>
                     {getStatusLabel(property.status)}
                   </span>
-                  {(property?.status === 'tokenized' || property?.certificate_token_id) && (
+                  {(property?.status === 'tokenized' || property?.certificate_id || property?.certificate_token_id) && (
                     <a
-                      href={property?.certificate_token_id ? `https://hashscan.io/testnet/token/${property.certificate_token_id}` : '#'}
+                      href={property?.certificate_token_id ? getCertificateHashScanUrl() : '#'}
                       target="_blank"
                       rel="noreferrer"
                       className="inline-flex items-center px-3 py-1 rounded-full text-sm border bg-purple-500/10 text-purple-400 border-purple-500/20 hover:bg-purple-500/20 transition-colors"
@@ -378,7 +335,7 @@ export default function PropertyDetailPage() {
                         />
                         {/* Fallback placeholder */}
                         <div className={`absolute inset-0 bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center hidden`}>
-                          <span className="text-8xl">{getPropertyTypeIcon(property.property_type)}</span>
+                          <span className="text-8xl">{getPropertyTypeIcon(property.property_type || null)}</span>
                         </div>
                       </div>
                       
@@ -390,27 +347,17 @@ export default function PropertyDetailPage() {
                               <button
                                 key={index}
                                 onClick={() => setSelectedImage(index)}
-                                className={`flex-shrink-0 w-16 h-16 rounded-lg border-2 transition-all ${
+                                className={`flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all ${
                                   selectedImage === index 
-                                    ? 'border-emerald-500 bg-emerald-500/20' 
-                                    : 'border-white/10 bg-white/5 hover:border-white/20'
+                                    ? 'border-emerald-500' 
+                                    : 'border-white/20 hover:border-white/40'
                                 }`}
                               >
-                                <img
-                                  src={getImageUrl(index)}
-                                  alt={`${displayName} - Thumbnail ${index + 1}`}
-                                  className="w-full h-full object-cover rounded-lg"
-                                  onError={(e) => {
-                                    // Fallback to placeholder if thumbnail fails to load
-                                    const target = e.target as HTMLImageElement;
-                                    target.style.display = 'none';
-                                    target.nextElementSibling?.classList.remove('hidden');
-                                  }}
+                                <img 
+                                  src={getImageUrl(index)} 
+                                  alt={`Thumbnail ${index + 1}`}
+                                  className="w-full h-full object-cover"
                                 />
-                                {/* Fallback placeholder for thumbnail */}
-                                <div className={`hidden w-full h-full bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center rounded-lg`}>
-                                  <span className="text-lg">{getPropertyTypeIcon(property.property_type)}</span>
-                                </div>
                               </button>
                             ))}
                           </div>
@@ -418,26 +365,66 @@ export default function PropertyDetailPage() {
                       )}
                     </>
                   ) : (
-                    /* No images available - show placeholder */
-                    <div className="relative h-96 bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center">
-                      <span className="text-8xl">{getPropertyTypeIcon(property.property_type)}</span>
-                      <div className="absolute bottom-4 left-4 bg-black/50 text-white px-3 py-1 rounded-lg text-sm">
-                        No images available
-                      </div>
+                    <div className="h-96 bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center">
+                      <span className="text-8xl">{getPropertyTypeIcon(property.property_type || null)}</span>
                     </div>
                   )}
                 </div>
 
-                {/* Description */}
+                {/* Property Details */}
                 <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-                  <h2 className="text-2xl font-bold text-white mb-4">About This Property</h2>
-                  <p className="text-gray-300 leading-relaxed">{property.description}</p>
+                  <h2 className="text-2xl font-bold text-white mb-6">Property Details</h2>
+                  {property.description && (
+                    <p className="text-gray-300 mb-6">{property.description}</p>
+                  )}
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-400">Property Type</span>
+                      <span className="text-white">{getPropertyTypeLabel(property.property_type)}</span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-400">Property Size</span>
+                      <span className="text-white">
+                        {property.property_details?.property_size || 'N/A'}
+                      </span>
+                    </div>
+                    
+                    {property.property_details?.legal_status && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Legal Status</span>
+                        <span className="text-white">{property.property_details.legal_status}</span>
+                      </div>
+                    )}
+                    
+                    {property.property_details?.occupancy_rate && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Occupancy Rate</span>
+                        <span className="text-white">{property.property_details.occupancy_rate}%</span>
+                      </div>
+                    )}
+                    
+                    {property.property_details?.annual_rental_income && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Annual Rental Income</span>
+                        <span className="text-white">{formatCurrency(parseFloat(property.property_details.annual_rental_income))}</span>
+                      </div>
+                    )}
+                    
+                    {property.property_details?.appreciation_rate && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Appreciation Rate</span>
+                        <span className="text-emerald-400">{property.property_details.appreciation_rate}%</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Investment Highlights */}
-                <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-                  <h2 className="text-2xl font-bold text-white mb-4">Investment Highlights</h2>
-                  {property.investment_highlights && property.investment_highlights.length > 0 ? (
+                {property.investment_highlights && property.investment_highlights.length > 0 && (
+                  <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+                    <h2 className="text-2xl font-bold text-white mb-6">Investment Highlights</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {property.investment_highlights.map((highlight, index) => (
                         <div key={index} className="flex items-start space-x-3">
@@ -446,15 +433,13 @@ export default function PropertyDetailPage() {
                         </div>
                       ))}
                     </div>
-                  ) : (
-                    <p className="text-gray-400">No investment highlights available.</p>
-                  )}
-                </div>
+                  </div>
+                )}
 
                 {/* Property Features */}
-                <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-                  <h2 className="text-2xl font-bold text-white mb-4">Property Features</h2>
-                  {property.property_features && property.property_features.length > 0 ? (
+                {property.property_features && property.property_features.length > 0 && (
+                  <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+                    <h2 className="text-2xl font-bold text-white mb-6">Property Features</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {property.property_features.map((feature, index) => (
                         <div key={index} className="flex items-center space-x-3">
@@ -463,15 +448,13 @@ export default function PropertyDetailPage() {
                         </div>
                       ))}
                     </div>
-                  ) : (
-                    <p className="text-gray-400">No property features available.</p>
-                  )}
-                </div>
+                  </div>
+                )}
 
                 {/* Amenities */}
-                {property.amenities && property.amenities.length > 0 ? (
+                {property.amenities && property.amenities.length > 0 && (
                   <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-                    <h2 className="text-2xl font-bold text-white mb-4">Amenities</h2>
+                    <h2 className="text-2xl font-bold text-white mb-6">Amenities</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {property.amenities.map((amenity, index) => (
                         <div key={index} className="flex items-center space-x-3">
@@ -481,12 +464,12 @@ export default function PropertyDetailPage() {
                       ))}
                     </div>
                   </div>
-                ) : null}
+                )}
 
-                {/* Risks */}
-                <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-                  <h2 className="text-2xl font-bold text-white mb-4">Investment Risks</h2>
-                  {property.investment_risks && property.investment_risks.length > 0 ? (
+                {/* Investment Risks */}
+                {property.investment_risks && property.investment_risks.length > 0 && (
+                  <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+                    <h2 className="text-2xl font-bold text-white mb-6">Investment Risks</h2>
                     <div className="space-y-3">
                       {property.investment_risks.map((risk, index) => (
                         <div key={index} className="flex items-start space-x-3">
@@ -495,13 +478,42 @@ export default function PropertyDetailPage() {
                         </div>
                       ))}
                     </div>
-                  ) : (
-                    <p className="text-gray-400">No investment risks listed.</p>
-                  )}
+                  </div>
+                )}
+
+                {/* Property Manager */}
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+                  <h3 className="text-lg font-bold text-white mb-4">Property Manager</h3>
+                  <p className="text-gray-300">{property.property_manager || 'No property manager assigned'}</p>
+                  
+                  <div className="mt-4 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-400 text-sm">Last Updated</span>
+                      <span className="text-white text-sm">{formatDate(property.updated_at)}</span>
+                    </div>
+                  </div>
                 </div>
+
+                {/* Debug Information - Remove this in production */}
+                {process.env.NODE_ENV === 'development' && (
+                  <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-2xl p-6">
+                    <h3 className="text-lg font-bold text-yellow-400 mb-4">🐛 Debug Info</h3>
+                    <div className="space-y-2 text-sm">
+                      <div><span className="text-yellow-300">Status:</span> <span className="text-white">{property.status}</span></div>
+                      <div><span className="text-yellow-300">Certificate ID:</span> <span className="text-white">{property.certificate_id || 'null'}</span></div>
+                      <div><span className="text-yellow-300">Certificate Token ID:</span> <span className="text-white">{property.certificate_token_id || 'null'}</span></div>
+                      <div><span className="text-yellow-300">Token ID (from treasury):</span> <span className="text-white">{tokenId || 'null'}</span></div>
+                      <div><span className="text-yellow-300">Token Price:</span> <span className="text-white">{property.token_price || 'null'}</span></div>
+                      <div><span className="text-yellow-300">Total Value:</span> <span className="text-white">{property.total_value || 'null'}</span></div>
+                      <div><span className="text-yellow-300">Yield Rate:</span> <span className="text-white">{property.yield_rate || 'null'}</span></div>
+                      <div><span className="text-yellow-300">Appreciation Rate:</span> <span className="text-white">{property.property_details?.appreciation_rate || 'null'}</span></div>
+                    </div>
+                  </div>
+                )}
+
               </div>
 
-              {/* Sidebar */}
+              {/* Right Sidebar */}
               <div className="space-y-6">
                 {/* Investment Summary */}
                 <div className="bg-white/5 border border-white/10 rounded-2xl p-6 sticky top-24">
@@ -510,27 +522,53 @@ export default function PropertyDetailPage() {
                   <div className="space-y-4">
                     <div className="flex justify-between items-center">
                       <span className="text-gray-400">Total Value</span>
-                      <span className="text-white font-semibold">{property.total_value ? formatNumber(property.total_value) : 'N/A'}</span>
+                      <span className="text-white">{property.total_value ? formatCurrency(property.total_value) : 'N/A'}</span>
                     </div>
                     
                     <div className="flex justify-between items-center">
                       <span className="text-gray-400">Token Price</span>
-                      <span className="text-white font-semibold">{property.token_price ? formatCurrency(property.token_price) : 'N/A'}</span>
+                      <span className="text-white font-semibold">
+                        {property.token_price ? formatCurrency(property.token_price) : '$1.00'} (1:1 ratio)
+                      </span>
                     </div>
                     
                     <div className="flex justify-between items-center">
                       <span className="text-gray-400">Yield Rate</span>
-                      <span className="text-emerald-400 font-semibold">{property.yield_rate || 'N/A'}</span>
+                      <span className="text-emerald-400 font-semibold">
+                        {property.yield_rate ? `${parseFloat(property.yield_rate).toLocaleString('en-US')}%` : 'N/A'}
+                      </span>
                     </div>
                     
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-400">Expected Return</span>
-                      <span className="text-emerald-400 font-semibold">{property.yield_rate || 'N/A'}</span>
+                      <span className="text-gray-400">Expected Annual Return</span>
+                      <span className="text-emerald-400 font-semibold">
+                        {property.yield_rate && property.property_details?.appreciation_rate
+                          ? `${(parseFloat(property.yield_rate) + parseFloat(property.property_details.appreciation_rate)).toLocaleString('en-US')}%`
+                          : property.yield_rate ? `${parseFloat(property.yield_rate).toLocaleString('en-US')}%` : 'N/A'}
+                      </span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-400">Expected Monthly Return</span>
+                      <span className="text-emerald-400 font-semibold">
+                        {property.yield_rate && property.total_value
+                          ? formatCurrency((parseFloat(property.yield_rate) / 100) * property.total_value / 12)
+                          : 'N/A'}
+                      </span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-400">Total Tokens</span>
+                      <span className="text-white font-semibold">
+                        {property.total_value ? property.total_value.toLocaleString() : 'N/A'}
+                      </span>
                     </div>
                     
                     <div className="flex justify-between items-center">
                       <span className="text-gray-400">Available Tokens</span>
-                      <span className="text-white font-semibold">{property.funded_percent ? `${property.funded_percent}%` : 'N/A'}</span>
+                      <span className="text-white font-semibold">
+                        {property.tokens_available ? property.tokens_available.toLocaleString() : 'N/A'}
+                      </span>
                     </div>
                   </div>
 
@@ -571,103 +609,59 @@ export default function PropertyDetailPage() {
                   </MagneticEffect>
                 </div>
 
-                {/* Property Details */}
-                <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-                  <h3 className="text-lg font-bold text-white mb-4">Property Details</h3>
-                  
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-400">Property Size</span>
-                      <span className="text-white">{property.property_details?.size || 'N/A'}</span>
-                    </div>
-                    
-                    {property.property_details?.legal_status && (
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-400">Legal Status</span>
-                        <span className="text-white">{property.property_details.legal_status}</span>
-                      </div>
-                    )}
-                    
-                    {property.property_details?.occupancy_rate && (
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-400">Occupancy Rate</span>
-                        <span className="text-white">{property.property_details.occupancy_rate}%</span>
-                      </div>
-                    )}
-                    
-                    {property.property_details?.annual_rental_income && (
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-400">Annual Rental Income</span>
-                        <span className="text-white">{formatNumber(property.property_details.annual_rental_income)}</span>
-                      </div>
-                    )}
-                    
-                    {property.property_details?.appreciation_rate && (
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-400">Appreciation Rate</span>
-                        <span className="text-emerald-400">{property.property_details.appreciation_rate}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Property Manager */}
-                <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-                  <h3 className="text-lg font-bold text-white mb-4">Property Manager</h3>
-                  <p className="text-gray-300">{property.property_manager || 'No property manager assigned'}</p>
-                  
-                  <div className="mt-4 space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-400 text-sm">Last Updated</span>
-                      <span className="text-white text-sm">{formatDate(property.updated_at)}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Token Information */}
-                {(property?.status === 'tokenized' || property?.certificate_token_id) && (
+                {/* Certificate Information */}
+                {(property?.status === 'verified' || property?.certificate_id || property?.certificate_token_id) && (
                   <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-                    <h3 className="text-lg font-bold text-white mb-4">🪙 Token Information</h3>
+                    <h3 className="text-lg font-bold text-white mb-4">🪙 Property Certificate</h3>
                     <div className="space-y-3">
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-400">Token ID</span>
-                        <span className="text-white font-mono text-sm truncate max-w-32" title={property?.certificate_token_id || 'N/A'}>
-                          {property?.certificate_token_id || 'N/A'}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-400">HashScan</span>
-                        <a
-                          href={property?.certificate_token_id ? `https://hashscan.io/testnet/token/${property.certificate_token_id}` : '#'}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-purple-400 hover:text-purple-300 text-sm underline"
-                        >
-                          View on HashScan ↗
-                        </a>
-                      </div>
-                      {property?.certificate_number && (
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-400">Certificate</span>
-                          <span className="text-white">{property.certificate_number}</span>
+                      {(property?.certificate_id || property?.certificate_token_id) ? (
+                        <>
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-400">Certificate ID</span>
+                            <div className="flex items-center space-x-2">
+                              <span className="text-white font-mono text-sm">
+                                {property.certificate_token_id || 'N/A'}
+                              </span>
+                              <a
+                                href={property?.certificate_token_id ? getCertificateHashScanUrl() : '#'}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-purple-400 hover:text-purple-300"
+                                title="View on HashScan"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                </svg>
+                              </a>
+                            </div>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-400">Status</span>
+                            <span className="inline-flex items-center text-emerald-400">
+                              <svg className="w-3 h-3 mr-1.5" fill="currentColor" viewBox="0 0 8 8">
+                                <circle cx={4} cy={4} r={3} />
+                              </svg>
+                              Verified
+                            </span>
+                          </div>
+                          {property?.certificate_issued_at && (
+                            <div className="flex justify-between items-center">
+                              <span className="text-gray-400">Issued</span>
+                              <span className="text-white">{formatDate(property.certificate_issued_at)}</span>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="text-center py-4">
+                          <p className="text-gray-400">No certificate issued yet</p>
                         </div>
                       )}
-                      {property?.certificate_issued_at && (
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-400">Issued</span>
-                          <span className="text-white">{formatDate(property.certificate_issued_at)}</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-400">Status</span>
-                        <span className="text-emerald-400">Active on Hedera</span>
-                      </div>
                     </div>
                   </div>
                 )}
 
                 {/* Token Information */}
-                {isPropertyTokenized() && (
+                {(property?.status === 'tokenized' || property?.token_price || tokenId) && (
                   <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
                     <h3 className="text-lg font-bold text-white mb-4">🪙 Token Information</h3>
                     <div className="space-y-3">
@@ -680,7 +674,7 @@ export default function PropertyDetailPage() {
                       <div className="flex justify-between items-center">
                         <span className="text-gray-400">HashScan</span>
                         <a
-                          href={getHashScanUrl() || '#'}
+                          href={getTokenHashScanUrl() || '#'}
                           target="_blank"
                           rel="noreferrer"
                           className="text-purple-400 hover:text-purple-300 text-sm underline"
@@ -690,7 +684,7 @@ export default function PropertyDetailPage() {
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-gray-400">Token Price</span>
-                        <span className="text-white">{property.token_price ? formatCurrency(property.token_price) : 'N/A'}</span>
+                        <span className="text-white">$1.00 (1:1 ratio)</span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-gray-400">Min Investment</span>
@@ -704,36 +698,115 @@ export default function PropertyDetailPage() {
                   </div>
                 )}
 
-                {/* Property Certificate */}
+                {/* Property Details Sidebar */}
                 <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-                  <h3 className="text-lg font-bold text-white mb-4">Verification Certificate</h3>
-                  {!isAuthenticated ? (
-                    <div className="text-center py-8">
-                      <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                        </svg>
-                      </div>
-                      <h3 className="text-lg font-semibold text-white mb-2">Authentication Required</h3>
-                      <p className="text-gray-400 mb-4">Please log in to generate property certificates.</p>
-                      <Link href="/auth" className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
-                        Log In
-                      </Link>
+                  <h3 className="text-lg font-bold text-white mb-4">Property Details</h3>
+                  
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-400">Listed By</span>
+                      <span className="text-white">{property.listed_by}</span>
                     </div>
-                  ) : (
-                    <PropertyCertificate
-                      propertyId={property.id}
-                      certificateData={certificateData}
-                      onGenerateCertificate={handleGenerateCertificate}
-                      isGenerating={isGeneratingCertificate}
-                    />
-                  )}
+                    
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-400">Created</span>
+                      <span className="text-white text-sm">{formatDate(property.created_at)}</span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-400">Last Updated</span>
+                      <span className="text-white text-sm">{formatDate(property.updated_at)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* AI Insights */}
+                <div className="bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-indigo-500/10 border border-blue-500/30 rounded-3xl p-8 backdrop-blur-sm relative overflow-hidden">
+                  {/* Animated background elements */}
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full blur-3xl"></div>
+                  <div className="absolute bottom-0 left-0 w-24 h-24 bg-purple-500/5 rounded-full blur-2xl"></div>
+                  
+                  <div className="relative z-10 text-center">
+                    <div className="flex items-center justify-center mb-6">
+                      <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-500 rounded-3xl flex items-center justify-center mr-4 shadow-lg">
+                        <span className="text-3xl">🤖</span>
+                      </div>
+                      <div>
+                        <h3 className="text-3xl font-bold text-white mb-2">
+                          AI Property Analysis
+                        </h3>
+                        <p className="text-gray-300 text-lg">
+                          Get advanced machine learning insights
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex flex-wrap items-center justify-center gap-3 mb-8">
+                      <div className="flex items-center bg-green-500/20 border border-green-500/30 rounded-full px-4 py-2 backdrop-blur-sm">
+                        <div className="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></div>
+                        <span className="text-green-300 font-medium text-sm">Risk Assessment</span>
+                      </div>
+                      <div className="flex items-center bg-blue-500/20 border border-blue-500/30 rounded-full px-4 py-2 backdrop-blur-sm">
+                        <div className="w-2 h-2 bg-blue-400 rounded-full mr-2 animate-pulse"></div>
+                        <span className="text-blue-300 font-medium text-sm">Market Analysis</span>
+                      </div>
+                      <div className="flex items-center bg-purple-500/20 border border-purple-500/30 rounded-full px-4 py-2 backdrop-blur-sm">
+                        <div className="w-2 h-2 bg-purple-400 rounded-full mr-2 animate-pulse"></div>
+                        <span className="text-purple-300 font-medium text-sm">Smart Recommendations</span>
+                      </div>
+                    </div>
+                    
+                    <button
+                      onClick={() => setShowAIInsights(true)}
+                      className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-8 py-4 rounded-2xl transition-all duration-300 shadow-lg hover:shadow-blue-500/25 font-semibold text-lg group"
+                    >
+                      <span className="flex items-center">
+                        <span className="mr-3">🧠</span>
+                        Run AI Analysis
+                        <svg className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
           </ScrollAnimations>
+
+          {/* Transparency Section */}
+          {topicId && (
+            <ScrollAnimations animationType="fade-in-up" delay={400}>
+              <div className="mb-8">
+                <TransparencySection topicId={topicId} />
+              </div>
+            </ScrollAnimations>
+          )}
+
+          {/* Activity Feed */}
+          {property && (
+            <ScrollAnimations animationType="fade-in-up" delay={500}>
+              <div className="mb-8">
+                <PropertyActivityFeed 
+                  propertyId={property.id} 
+                  topicId={topicId || undefined}
+                />
+              </div>
+            </ScrollAnimations>
+          )}
         </div>
       </div>
+
+      {/* AI Insights Modal */}
+      {property && (
+        <AIInsightsModal
+          property={property}
+          isOpen={showAIInsights}
+          onClose={() => setShowAIInsights(false)}
+        />
+      )}
     </div>
   );
-} 
+};
+
+export default PropertyDetailPage;

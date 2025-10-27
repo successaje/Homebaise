@@ -128,3 +128,10 @@ Build a demo dApp for the Hedera hackathon that demonstrates:
 - KYC mock (upload ID, no backend)
 - Real stablecoin integration (`USDC` on Hedera testnet)
 - Interactive map view of properties
+
+
+---
+## Additional ones 
+- Remmitance and Yield
+- Agriculture and from produce inclusive
+- Interoperability of networks and chain.

@@ -11,8 +11,13 @@ import {
   TransferTransaction,
   Client,
   AccountId,
-  TokenId
+  TokenId,
+  AccountBalanceQuery
 } from "@hashgraph/sdk";
+
+// NOTE: We rely on Supabase for resolving a property's treasury account and token id
+// and use Hedera Mirror Node to fetch live token balances.
+import { supabase } from '@/lib/supabase';
 
 export interface TreasuryAccount {
   accountId: string;
@@ -148,7 +153,7 @@ export async function createPropertyNFT(
     if (!operatorAccountId) {
       throw new Error("Client not configured with operator account");
     }
-    const balance = await client.getAccountBalance(operatorAccountId);
+    const balance = await new AccountBalanceQuery().setAccountId(operatorAccountId).execute(client);
     console.log(`Operator account balance before NFT creation: ${balance.hbars.toString()} HBAR`);
     if (balance.hbars.toTinybars() < new Hbar(5).toTinybars()) {
       throw new Error(`Insufficient operator balance. Need at least 5 HBAR, have ${balance.hbars.toString()}`);
@@ -243,8 +248,7 @@ export async function mintNFT(
 
     const transaction = new TokenMintTransaction()
       .setTokenId(token)
-      .setTokenType(TokenType.NonFungibleUnique)
-      .setMetadata(Buffer.from(metadata, "utf8"));
+      .setMetadata([new Uint8Array(Buffer.from(metadata, "utf8"))]);
 
     // Sign and execute the transaction with higher fee
     await transaction
@@ -297,11 +301,121 @@ export async function getAccountBalance(
   accountId: string
 ): Promise<Hbar> {
   try {
-    const account = AccountId.fromString(accountId);
-    const balance = await client.getAccountBalance(account);
+    const balance = await new AccountBalanceQuery()
+      .setAccountId(accountId)
+      .execute(client);
+    
     return balance.hbars;
   } catch (error) {
-    console.error("Error getting account balance:", error);
-    throw new Error(`Failed to get account balance: ${error}`);
+    console.error('Error fetching account balance:', error);
+    throw new Error(`Failed to fetch account balance: ${error}`);
   }
-} 
+}
+
+/**
+ * Get the actual fungibletoken balance for a property from the property_treasury_accounts table
+ */
+export async function getPropertyFungibleTokenBalance(propertyId: string): Promise<number | null> {
+  try {
+    const {data, error } = await supabase
+      .from('property_treasury_accounts')
+      .select('token_balance')
+      .eq('property_id', propertyId)
+      .single();
+
+      if (error){
+        console.log("Error fetching property fungible token balance", error);
+        return null;
+      }
+
+      if (!data){
+        console.log("No data found for property's funginle token balance", propertyId);
+        return null;
+      }
+      console.log("Property's fungible token balance", data.token_balance);
+      return data.token_balance;
+  } catch (error) {
+    console.error('Error fetching property fungible token balance:', error);
+    throw new Error(`Failed to fetch property fungible token balance: ${error}`);
+  }
+}
+
+/**
+ * Get the token balance for a property from the property_treasury_accounts table
+ */
+export async function getPropertyTokenBalance(propertyId: string): Promise<number | null> {
+  try {
+    // Resolve treasury info first
+    const { data, error } = await supabase
+      .from('property_treasury_accounts')
+      .select('hedera_account_id, token_id, initial_balance_hbar')
+      .eq('property_id', propertyId)
+      .single();
+
+    // If no row exists yet, return 0 quietly (property not tokenized/treasury not created)
+    if (error?.code === 'PGRST116' || !data) {
+      console.warn('No treasury account found for property; returning 0', { propertyId });
+      console.log("The test property id is here: ",JSON.stringify(propertyId));
+      return 0;
+    }
+
+    if (error) {
+      console.error('Error fetching treasury account for property', { propertyId, error });
+      return 0;
+    }
+
+    const hederaAccountId = (data as any)?.hedera_account_id as string | null;
+    const tokenId = (data as any)?.token_id as string | null;
+
+    // If we have mirror-readable identifiers, fetch live balance from Mirror Node
+    if (hederaAccountId && tokenId) {
+      const mirrorBalance = await getTokenBalanceFromMirror(hederaAccountId, tokenId);
+      if (mirrorBalance !== null) return mirrorBalance;
+    }
+
+    // Fallback to last known balance stored in DB
+    return (data as any)?.initial_balance_hbar || 0;
+  } catch (error) {
+    console.error('Error in getPropertyTokenBalance', { propertyId, error });
+    return 0;
+  }
+}
+
+/**
+ * Fetch the token balance for a specific account+token from Hedera Mirror Node
+ * GET /api/v1/accounts/{hedera_account_id}/tokens?token.id={tokenId}
+ */
+export async function getTokenBalanceFromMirror(
+  hederaAccountId: string,
+  tokenId: string
+): Promise<number | null> {
+  try {
+    const baseUrl = process.env.NEXT_PUBLIC_HEDERA_MIRROR_NODE_URL || 'https://testnet.mirrornode.hedera.com';
+    const url = `${baseUrl}/api/v1/accounts/${encodeURIComponent(hederaAccountId)}/tokens?token.id=${encodeURIComponent(tokenId)}`;
+
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) {
+      console.error('Mirror node response not ok:', res.status, res.statusText);
+      return null;
+    }
+
+    const json = await res.json();
+    // Response shape: { tokens: [{ token_id, balance, decimals }] }
+    const tokens = json?.tokens as Array<{ token_id: string; balance: string | number; decimals?: number }> | undefined;
+    if (!tokens || tokens.length === 0) return 0;
+
+    const entry = tokens.find(t => t.token_id === tokenId) || tokens[0];
+    if (!entry) return 0;
+
+    const rawBalance = typeof entry.balance === 'string' ? parseFloat(entry.balance) : entry.balance;
+    const decimals = entry.decimals ?? 0;
+
+    // Convert to whole tokens based on decimals
+    const divisor = Math.pow(10, decimals);
+    const wholeTokens = divisor > 0 ? Math.floor(rawBalance / divisor) : Math.floor(rawBalance);
+    return wholeTokens;
+  } catch (error) {
+    console.error('Error fetching token balance from mirror:', error);
+    return null;
+  }
+}
