@@ -212,10 +212,8 @@ export class InvestmentFlow {
 
         if (treasuryError) {
           console.error('❌ Failed to fetch treasury data for HCS logging:', treasuryError);
-          return;
-        }
-
-        if (treasuryData?.topic_id) {
+          // Skip HCS logging if we can't fetch treasury data, but don't fail the investment
+        } else if (treasuryData?.topic_id) {
           console.log('✅ Found HCS topic:', treasuryData.topic_id);
           
           // Log investment event to HCS
@@ -229,7 +227,7 @@ export class InvestmentFlow {
             {
               tokens_purchased: tokensToPurchase,
               usd_amount: investmentAmount,
-              token_transfer_tx: tokenTxId
+              token_transfer_tx: transactionHash
             }
           );
           console.log('✅ Investment event logged to HCS:', investmentTxId);
@@ -242,7 +240,7 @@ export class InvestmentFlow {
             treasuryInfo.hedera_account_id,
             investorInfo.hedera_account_id!,
             tokensToPurchase,
-            tokenTxId
+            transactionHash
           );
           console.log('✅ Token transfer event logged to HCS:', transferTxId);
 

@@ -476,8 +476,8 @@ export class MarketplaceTradingService {
       });
     };
 
-    const bids = calculateDepth(orderBook.bids, false);
-    const asks = calculateDepth(orderBook.asks, true);
+    const bids = calculateDepth(orderBook.bids);
+    const asks = calculateDepth(orderBook.asks);
 
     const maxTotal = Math.max(
       ...bids.map(b => b.cumulative_amount),

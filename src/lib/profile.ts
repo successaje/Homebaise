@@ -170,7 +170,7 @@ export async function getBasicProfile(): Promise<ProfileRow | null> {
 
     const { data: profile, error } = await supabase
       .from('profiles')
-      .select('id, email, full_name, avatar_url, role, kyc_status, wallet_address, phone_number')
+      .select('id, email, full_name, avatar_url, role, kyc_status, wallet_address, phone_number, provider, hedera_account_id, hedera_evm_address, hedera_private_key, hedera_public_key, kyc_verified_at, created_at, updated_at')
       .eq('id', user.id)
       .single()
 
@@ -185,7 +185,7 @@ export async function getBasicProfile(): Promise<ProfileRow | null> {
       return null
     }
 
-    return profile
+    return profile as ProfileRow
   } catch (error) {
     console.error('getBasicProfile - Unexpected error:', error)
     return null

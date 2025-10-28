@@ -155,7 +155,7 @@ export const pinToIPFS = async (cid: string): Promise<boolean> => {
  * @param cid - The CID to get info for
  * @returns Promise with file information
  */
-export const getIPFSFileInfo = async (cid: string): Promise<Record<string, unknown>> => {
+export const getIPFSFileInfo = async (cid: string): Promise<Record<string, unknown> | null> => {
   try {
     const response = await fetch(`https://api.pinata.cloud/pinning/pinList?hashContains=${cid}`, {
       headers: {

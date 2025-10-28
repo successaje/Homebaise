@@ -41,11 +41,9 @@ export async function createPropertyTopic(propertyId: string): Promise<string> {
     console.log(`Creating HCS topic for property: ${propertyId}`);
     
     // Create topic with memo for identification
+    // Note: Not setting submitKey and adminKey allows anyone to submit messages and no admin control
     const topicCreateTx = new TopicCreateTransaction()
       .setTopicMemo(`Property ${propertyId} - Homebaise`)
-      .setSubmitKey(null) // Allow anyone to submit messages
-      .setAdminKey(null) // No admin key for simplicity
-      .setAutoRenewAccountId(null)
       .setAutoRenewPeriod(7000000); // ~3 months
 
     const txResponse = await topicCreateTx.execute(client);
