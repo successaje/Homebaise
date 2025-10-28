@@ -11,11 +11,11 @@ export const formatCurrency = (amount: number | null | undefined, currency = 'US
 export const formatNumber = (num: number | null | undefined): string => {
   if (num == null) return 'N/A';
   if (num >= 1000000) {
-    return `$${(num / 1000000).toFixed(1)}M`;
+    return `${(num / 1000000).toFixed(1)}M`;
   } else if (num >= 1000) {
-    return `$${(num / 1000).toFixed(0)}K`;
+    return `${(num / 1000).toFixed(0)}K`;
   }
-  return `$${num.toLocaleString()}`;
+  return num.toLocaleString();
 };
 
 export const formatPercentage = (value: number): string => {

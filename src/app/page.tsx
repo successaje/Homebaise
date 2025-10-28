@@ -6,7 +6,7 @@ import MagneticEffect from '@/components/MagneticEffect';
 const features = [
   {
     title: 'Fractional Ownership',
-    description: 'Own premium African real estate with investments starting from $100.',
+    description: 'Own premium African real estate with investments starting from $10.',
     icon: '🏠',
     gradient: 'from-emerald-500 to-teal-500'
   },
@@ -68,6 +68,44 @@ const stats = [
   { value: '$10M+', label: 'Total Value', sublabel: 'Under Management' },
   { value: '8.5%', label: 'Average Yield', sublabel: 'Annual Returns' },
   { value: '1.2K+', label: 'Investors', sublabel: 'Global Community' }
+];
+
+const recentActivities = [
+  { type: 'investment', message: 'Luxury Beachfront Villa just reached 75% funding', time: '2 hours ago', icon: '💰' },
+  { type: 'investor', message: '3 new investors joined today', time: '5 hours ago', icon: '👥' },
+  { type: 'funding', message: 'Urban Development Complex fully funded!', time: '1 day ago', icon: '🎉' },
+  { type: 'yield', message: 'Monthly yields distributed to 247 investors', time: '2 days ago', icon: '📈' },
+];
+
+const faqs = [
+  {
+    question: 'What is fractional real estate ownership?',
+    answer: 'Fractional ownership allows multiple investors to own shares of a property. Through tokenization, you can invest in premium African real estate with as little as $10, earning proportional returns from rental income and property appreciation.'
+  },
+  {
+    question: 'Why is Homebaise built on Hedera?',
+    answer: 'Hedera Hashgraph offers lightning-fast transactions (finalizing in seconds), extremely low fees (typically less than $0.001), energy-efficient consensus, and enterprise-grade security. This makes it perfect for real estate transactions that require speed, transparency, and cost-effectiveness.'
+  },
+  {
+    question: 'What is the minimum investment?',
+    answer: 'The minimum investment is $10. This low barrier to entry makes African real estate accessible to investors worldwide, not just high-net-worth individuals or institutions.'
+  },
+  {
+    question: 'How do I receive returns on my investment?',
+    answer: 'You earn returns in two ways: rental yields (distributed monthly or quarterly) and property appreciation. When a property you own tokens in generates rental income or appreciates in value, you receive proportional returns based on your token ownership.'
+  },
+  {
+    question: 'Can I sell my property tokens?',
+    answer: 'Yes! Your property tokens are tradeable on our secondary marketplace. You can buy or sell tokens 24/7, providing liquidity that traditional real estate investments lack.'
+  },
+  {
+    question: 'What are the risks involved?',
+    answer: 'Like any investment, there are risks including property value fluctuations, rental income variability, regulatory changes, and market conditions. We recommend diversifying across multiple properties and consulting with a financial advisor.'
+  },
+  {
+    question: 'How is property ownership verified?',
+    answer: 'All property ownership is recorded on the Hedera blockchain, providing immutable proof of your investment. You can verify your tokens and property ownership at any time through HashScan, Hedera\'s public explorer.'
+  }
 ];
 
 export default function Home() {
@@ -162,7 +200,7 @@ export default function Home() {
               <ScrollAnimations animationType="fade-in-up" delay={600}>
                 <p className="text-xl md:text-2xl text-gray-400 mb-12 max-w-4xl mx-auto leading-relaxed">
                   Own, invest, and build wealth in Africa&apos;s most promising properties through blockchain technology. 
-                  Start with as little as $100.
+                  Start with as little as $10.
                 </p>
               </ScrollAnimations>
               
@@ -253,8 +291,8 @@ export default function Home() {
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
               {properties.map((property, index) => (
                 <ScrollAnimations key={property.id} animationType="fade-in-up" delay={index * 200}>
-                  <div className="group">
-                    <div className="relative bg-white/5 backdrop-blur-xl rounded-2xl overflow-hidden border border-white/10 hover:border-emerald-500/30 transition-all duration-500 hover-lift">
+                  <Link href="/properties" className="group block">
+                    <div className="relative bg-white/5 backdrop-blur-xl rounded-2xl overflow-hidden border border-white/10 hover:border-emerald-500/30 transition-all duration-500 hover-lift cursor-pointer">
                       {/* Property Image */}
                       <div className="h-48 relative overflow-hidden">
                         <Image 
@@ -302,27 +340,153 @@ export default function Home() {
                           </div>
                         </div>
 
-                        <MagneticEffect>
-                          <button className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold py-3 px-6 rounded-xl hover:shadow-lg hover:shadow-emerald-500/25 transition-all duration-300 hover-lift">
-                            View Details
-                          </button>
-                        </MagneticEffect>
+                        <div className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold py-3 px-6 rounded-xl text-center hover:shadow-lg hover:shadow-emerald-500/25 transition-all duration-300">
+                          View Details →
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  </Link>
                 </ScrollAnimations>
               ))}
             </div>
 
             <ScrollAnimations animationType="fade-in-up" delay={600}>
               <div className="text-center mt-12">
-                <MagneticEffect>
-                  <button className="border border-white/20 bg-white/5 text-white px-8 py-4 rounded-full font-medium hover:bg-white/10 transition-all duration-300 hover-lift">
-                    View All Properties
-                  </button>
-                </MagneticEffect>
+                <Link href="/properties">
+                  <MagneticEffect>
+                    <button className="border border-white/20 bg-white/5 text-white px-8 py-4 rounded-full font-medium hover:bg-white/10 transition-all duration-300 hover-lift">
+                      View All Properties
+                    </button>
+                  </MagneticEffect>
+                </Link>
               </div>
             </ScrollAnimations>
+          </div>
+        </section>
+
+        {/* Recent Activity Section */}
+        <section className="py-24 bg-white/5">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <ScrollAnimations animationType="fade-in-up">
+              <div className="text-center mb-12">
+                <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
+                  Recent Activity
+                </h2>
+                <p className="text-lg text-gray-400">
+                  See what's happening on Homebaise
+                </p>
+              </div>
+            </ScrollAnimations>
+
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {recentActivities.map((activity, index) => (
+                <ScrollAnimations key={index} animationType="fade-in-up" delay={index * 100}>
+                  <div className="bg-white/5 backdrop-blur-xl rounded-xl p-6 border border-white/10 hover:border-emerald-500/30 transition-all duration-300 hover-lift">
+                    <div className="flex items-start space-x-4">
+                      <div className="text-3xl">{activity.icon}</div>
+                      <div className="flex-1">
+                        <p className="text-white font-medium mb-1">{activity.message}</p>
+                        <p className="text-sm text-gray-400">{activity.time}</p>
+                      </div>
+                    </div>
+                  </div>
+                </ScrollAnimations>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Why Hedera Section */}
+        <section className="py-24">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <ScrollAnimations animationType="fade-in-up">
+              <div className="text-center mb-16">
+                <h2 className="text-5xl md:text-6xl font-bold text-white mb-6">
+                  Why Hedera Hashgraph?
+                </h2>
+                <p className="text-xl text-gray-400 max-w-3xl mx-auto">
+                  We chose Hedera for its unmatched speed, security, and sustainability
+                </p>
+              </div>
+            </ScrollAnimations>
+
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+              {[
+                {
+                  title: 'Lightning Fast',
+                  description: 'Transactions finalize in 3-5 seconds, not minutes or hours',
+                  metric: '< 5 sec',
+                  icon: '⚡',
+                  gradient: 'from-blue-500 to-cyan-500'
+                },
+                {
+                  title: 'Ultra Low Fees',
+                  description: 'Pay less than $0.001 per transaction, not hundreds of dollars',
+                  metric: '< $0.001',
+                  icon: '💰',
+                  gradient: 'from-emerald-500 to-teal-500'
+                },
+                {
+                  title: 'Energy Efficient',
+                  description: '99% more energy efficient than proof-of-work blockchains',
+                  metric: '99% less',
+                  icon: '🌱',
+                  gradient: 'from-green-500 to-emerald-500'
+                },
+                {
+                  title: 'Enterprise Grade',
+                  description: 'Used by leading companies for mission-critical applications',
+                  metric: '24/7',
+                  icon: '🔒',
+                  gradient: 'from-purple-500 to-pink-500'
+                }
+              ].map((benefit, index) => (
+                <ScrollAnimations key={index} animationType="fade-in-up" delay={index * 150}>
+                  <div className="group">
+                    <div className="relative bg-white/5 backdrop-blur-xl rounded-2xl p-8 border border-white/10 hover:border-emerald-500/30 transition-all duration-500 h-full hover-lift">
+                      <div className={`w-16 h-16 rounded-2xl bg-gradient-to-r ${benefit.gradient} flex items-center justify-center text-3xl mb-6 group-hover:scale-110 transition-transform duration-300`}>
+                        {benefit.icon}
+                      </div>
+                      <div className="text-3xl font-bold text-white mb-2">{benefit.metric}</div>
+                      <h3 className="text-xl font-bold text-white mb-3">{benefit.title}</h3>
+                      <p className="text-gray-400 leading-relaxed">{benefit.description}</p>
+                    </div>
+                  </div>
+                </ScrollAnimations>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* FAQ Section */}
+        <section className="py-24 bg-white/5">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+            <ScrollAnimations animationType="fade-in-up">
+              <div className="text-center mb-16">
+                <h2 className="text-5xl md:text-6xl font-bold text-white mb-6">
+                  Frequently Asked Questions
+                </h2>
+                <p className="text-xl text-gray-400">
+                  Everything you need to know about investing with Homebaise
+                </p>
+              </div>
+            </ScrollAnimations>
+
+            <div className="space-y-4">
+              {faqs.map((faq, index) => (
+                <ScrollAnimations key={index} animationType="fade-in-up" delay={index * 100}>
+                  <details className="group bg-white/5 backdrop-blur-xl rounded-xl border border-white/10 hover:border-emerald-500/30 transition-all duration-300 overflow-hidden">
+                    <summary className="cursor-pointer p-6 text-white font-semibold text-lg flex items-center justify-between hover:text-emerald-400 transition-colors">
+                      <span>{faq.question}</span>
+                      <span className="text-2xl transition-transform duration-300 group-open:rotate-180">▼</span>
+                    </summary>
+                    <div className="px-6 pb-6 text-gray-300 leading-relaxed">
+                      {faq.answer}
+                    </div>
+                  </details>
+                </ScrollAnimations>
+              ))}
+            </div>
           </div>
         </section>
 
@@ -351,28 +515,32 @@ export default function Home() {
                     title: 'Create Account',
                     description: 'Sign up and complete your profile in minutes. No lengthy paperwork required.',
                     icon: '👤',
-                    details: 'KYC verification takes less than 5 minutes'
+                    details: 'KYC verification takes less than 5 minutes',
+                    image: '/images/signin.png'
                   },
                   {
                     step: '2',
                     title: 'Fund Your Wallet',
                     description: 'Deposit HBAR or stablecoins into your secure Hedera wallet.',
                     icon: '💳',
-                    details: 'Multiple payment methods accepted'
+                    details: 'Multiple payment methods accepted',
+                    image: '/images/deposithbar.png'
                   },
                   {
                     step: '3',
                     title: 'Browse & Invest',
-                    description: 'Explore properties, review details, and invest with as little as $100.',
+                    description: 'Explore properties, review details, and invest with as little as $10.',
                     icon: '🏠',
-                    details: 'Real-time property analytics'
+                    details: 'Real-time property analytics',
+                    image: '/images/investmentpage.png'
                   },
                   {
                     step: '4',
                     title: 'Earn & Trade',
                     description: 'Receive rental yields and trade your property tokens on our marketplace.',
                     icon: '📈',
-                    details: 'Automated yield distribution'
+                    details: 'Automated yield distribution',
+                    image: '/images/trade.png'
                   }
                 ].map((item, index) => (
                   <ScrollAnimations key={index} animationType="fade-in-up" delay={index * 300}>
@@ -401,12 +569,15 @@ export default function Home() {
                         </div>
                         
                         <div className={`lg:w-1/2 ${index % 2 === 0 ? 'lg:pl-16' : 'lg:pr-16'}`}>
-                          <div className="h-64 bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl flex items-center justify-center text-gray-500 relative overflow-hidden">
-                            <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 to-blue-500/10 animate-pulse-slow"></div>
-                            <div className="text-center">
-                              <div className="text-6xl mb-4 animate-bounce-slow">📱</div>
-                              <p className="text-sm">Step {item.step} Interface</p>
-                            </div>
+                          <div className="h-64 rounded-2xl relative overflow-hidden group-hover:shadow-2xl group-hover:shadow-emerald-500/20 transition-all duration-500">
+                            <Image 
+                              src={item.image} 
+                              alt={item.title}
+                              fill
+                              className="object-cover transition-transform duration-700 group-hover:scale-110"
+                              sizes="(max-width: 1024px) 100vw, 50vw"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent"></div>
                           </div>
                         </div>
                       </div>

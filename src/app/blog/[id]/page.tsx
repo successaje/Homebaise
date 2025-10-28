@@ -49,7 +49,7 @@ const blogPosts: BlogPost[] = [
 
       <p class="mb-6 text-gray-300 leading-relaxed">
         By breaking down large properties into smaller, tradeable tokens, investors can now participate in premium real estate markets 
-        with investments as small as $100. This democratization of real estate investment is opening up new possibilities for wealth creation 
+        with investments as small as $10. This democratization of real estate investment is opening up new possibilities for wealth creation 
         across the continent.
       </p>
 

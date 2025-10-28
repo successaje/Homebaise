@@ -38,7 +38,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ userId, className = '' 
         // Fetch user's investments
         const { data: investments, error: investmentsError } = await supabase
           .from('investments')
-          .select('amount, tokens_purchased, status, created_at')
+          .select('amount, tokens_purchased, status, created_at, property_id')
           .eq('investor_id', userId);
 
         if (investmentsError) {
@@ -70,6 +70,11 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ userId, className = '' 
         const completedInvestments = investments?.filter(inv => inv.status === 'completed') || [];
         const totalInvested = completedInvestments.reduce((sum, inv) => sum + (inv.amount || 0), 0);
         const totalTokens = completedInvestments.reduce((sum, inv) => sum + (inv.tokens_purchased || 0), 0);
+        
+        // Count distinct properties the user has invested in
+        const distinctPropertyIds = new Set(completedInvestments.map(inv => inv.property_id).filter(Boolean));
+        const propertiesOwned = distinctPropertyIds.size;
+        
         const averageInvestment = completedInvestments.length > 0 ? totalInvested / completedInvestments.length : 0;
         
         // Count recent activity (last 30 days)
@@ -85,7 +90,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ userId, className = '' 
         setStats({
           totalInvestments: completedInvestments.length,
           totalInvested,
-          totalProperties: properties?.length || 0,
+          totalProperties: propertiesOwned,
           totalTokens,
           averageInvestment,
           recentActivity,
@@ -140,7 +145,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ userId, className = '' 
     {
       title: 'Properties Owned',
       value: stats.totalProperties,
-      subtitle: `${stats.totalTokens.toLocaleString()} tokens`,
+      subtitle: `${formatNumber(stats.totalTokens)} tokens`,
       icon: '🏠',
       color: 'blue',
       link: '/properties'

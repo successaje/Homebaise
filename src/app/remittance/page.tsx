@@ -133,7 +133,7 @@ export default function RemittancePage() {
     const exchangeAmount = amount * selectedRemittanceOption.exchangeRate;
     const fees = (amount * selectedRemittanceOption.fees) / 100;
     const netAmount = exchangeAmount - fees;
-    return Math.floor(netAmount / 100); // Assuming 1 token = $100
+    return Math.floor(netAmount / 100); // Assuming 1 token = $10
   };
 
   const tokensToReceive = calculateTokens();

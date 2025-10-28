@@ -174,7 +174,7 @@ Trading Service (TypeScript)
 ## 🎯 Use Cases
 
 ### For Property Owners
-**"I tokenized my $1M property into 10,000 tokens. Now investors can buy as little as 1 token ($100) and trade them instantly on the marketplace."**
+**"I tokenized my $1M property into 10,000 tokens. Now investors can buy as little as 1 token ($10) and trade them instantly on the marketplace."**
 
 ### For Investors
 **"I bought tokens 3 months ago at $45. Now they're trading at $52. I can sell instantly without waiting months for a buyer."**
