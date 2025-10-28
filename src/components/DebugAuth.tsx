@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { getCurrentUserProfile } from '@/lib/profile';
 
 export default function DebugAuth() {
-  const [debugInfo, setDebugInfo] = useState<any>(null);
+  const [debugInfo, setDebugInfo] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

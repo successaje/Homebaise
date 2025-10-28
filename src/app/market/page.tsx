@@ -483,7 +483,7 @@ export default function MarketPage() {
             {/* Market Listings */}
             <div className="space-y-4">
               {sortedListings.map((listing) => (
-                // <MagneticEffect key={listing.id}>
+                <MagneticEffect key={listing.id}>
                   <div className="bg-white/5 border border-white/10 rounded-2xl p-6 hover:bg-white/10 transition-all duration-300 hover-lift">
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
                       {/* Property Info */}
@@ -563,7 +563,7 @@ export default function MarketPage() {
                       </div>
                     </div>
                   </div>
-                // {/* </MagneticEffect> */}
+                </MagneticEffect>
               ))}
             </div>
 

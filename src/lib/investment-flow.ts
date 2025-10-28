@@ -106,8 +106,8 @@ export class InvestmentFlow {
           hbarAmount: hbarNeeded,
           memo: `Investment payment for property ${propertyId}`
         });
-      } catch (paymentError: any) {
-        return { success: false, error: `HBAR transfer failed: ${paymentError?.message || 'Unknown error'}` };
+      } catch (paymentError: unknown) {
+        return { success: false, error: `HBAR transfer failed: ${paymentError instanceof Error ? paymentError.message : 'Unknown error'}` };
       }
 
       // Step 7: Create pending investment record
@@ -155,12 +155,13 @@ export class InvestmentFlow {
           treasuryInfo.token_id,
           tokensToPurchase
         );
-      } catch (transferError: any) {
+      } catch (transferError: unknown) {
         // Mark investment as failed
-        await this.updateInvestmentStatus(investment.id, 'failed', transferError.message);
+        const errorMessage = transferError instanceof Error ? transferError.message : 'Unknown error';
+        await this.updateInvestmentStatus(investment.id, 'failed', errorMessage);
         return { 
           success: false, 
-          error: `Token transfer failed: ${transferError.message}` 
+          error: `Token transfer failed: ${errorMessage}` 
         };
       }
 
@@ -267,11 +268,11 @@ export class InvestmentFlow {
         paymentTxId: paymentTransactionId
       };
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Investment flow error:', error);
       return { 
         success: false, 
-        error: error.message || 'Unknown error occurred' 
+        error: error instanceof Error ? error.message : 'Unknown error occurred' 
       };
     }
   }
@@ -418,12 +419,12 @@ export class InvestmentFlow {
         const associateResponse = await associateTx.execute(this.client);
         await associateResponse.getReceipt(this.client);
         console.log(`Token association successful for ${toAccountId}`);
-      } catch (associateError: any) {
+      } catch (associateError: unknown) {
         const errorMsg = String(associateError);
         // If token is already associated, that's fine - continue with transfer
         if (!/already associated|TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT/i.test(errorMsg)) {
           console.error('Token association error:', associateError);
-          throw new Error(`Failed to associate token with investor account: ${associateError.message}`);
+          throw new Error(`Failed to associate token with investor account: ${associateError instanceof Error ? associateError.message : 'Unknown error'}`);
         }
         console.log(`Token already associated for ${toAccountId} - continuing with transfer`);
       }
@@ -453,9 +454,9 @@ export class InvestmentFlow {
       
       // Return transaction hash
       return txId;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Token transfer error:', error);
-      throw new Error(`Token transfer failed: ${error.message}`);
+      throw new Error(`Token transfer failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -467,7 +468,7 @@ export class InvestmentFlow {
     status: 'pending' | 'completed' | 'failed' | 'cancelled',
     errorMessage?: string
   ): Promise<void> {
-    const updateData: any = { status };
+    const updateData: Record<string, unknown> = { status };
     
     if (status === 'completed') {
       updateData.completed_at = new Date().toISOString();

@@ -24,7 +24,7 @@ export default function ProfilePage() {
   const [walletAddress, setWalletAddress] = useState('')
   const [phoneNumber, setPhoneNumber] = useState('')
   const [loading, setLoading] = useState(true)
-  const [session, setSession] = useState<any>(null)
+  const [session, setSession] = useState<{ user: { id: string; email?: string } } | null>(null)
   const router = useRouter()
 
   useEffect(() => {
@@ -233,7 +233,15 @@ export default function ProfilePage() {
                   <div>
                     <h2 className="text-xl font-semibold text-white mb-4">Identity Verification</h2>
                     <KYCStatus status={profile?.kyc_status || 'unverified'} />
-                    {profile?.kyc_status !== 'verified' && <KYCVerification />}
+                    {profile?.kyc_status !== 'verified' && (
+                      <KYCVerification
+                        userId={profile?.id || ''}
+                        currentStatus={profile?.kyc_status || 'unverified'}
+                        onStatusChange={(status) => {
+                          // Handle status change if needed
+                        }}
+                      />
+                    )}
                   </div>
                 </div>
 
@@ -243,12 +251,17 @@ export default function ProfilePage() {
                     <h2 className="text-xl font-semibold text-white mb-4">Wallet & Blockchain</h2>
                     <div className="space-y-4">
                       <WalletConnect 
-                        onWalletConnected={(address) => setWalletAddress(address)}
-                        currentAddress={walletAddress}
+                        onConnected={(address) => setWalletAddress(address)}
                       />
                       
                       {!profile?.hedera_account_id && !walletAddress && (
-                        <HederaAccountCreator />
+                        <HederaAccountCreator 
+                          onAccountCreated={(accountId, evmAddress) => {
+                            setWalletAddress(accountId);
+                            // Refresh profile data by calling the effect again
+                            window.location.reload();
+                          }}
+                        />
                       )}
                       
                       {profile?.hedera_account_id && (

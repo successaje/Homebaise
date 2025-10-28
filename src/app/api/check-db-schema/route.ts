@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     
     // Check if property_treasury_accounts table exists
     const { data: treasuryTable, error: treasuryError } = await supabase

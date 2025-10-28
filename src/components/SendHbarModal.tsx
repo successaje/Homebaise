@@ -10,7 +10,7 @@ interface SendHbarModalProps {
   senderAccountId: string
   senderPrivateKey: string
   currentBalance: number
-  onTransactionComplete?: (result: any) => void
+  onTransactionComplete?: (result: { success: boolean; transactionId?: string }) => void
 }
 
 export default function SendHbarModal({
@@ -62,7 +62,10 @@ export default function SendHbarModal({
       
       // Call the completion callback if provided
       if (onTransactionComplete) {
-        onTransactionComplete(result)
+        onTransactionComplete({
+          success: true,
+          transactionId: result.transactionId
+        })
       }
 
       // Reset form and close modal

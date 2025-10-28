@@ -41,7 +41,7 @@ const CHART_TYPES = [
 export default function TradingChart({ propertyId }: TradingChartProps) {
   const [chartData, setChartData] = useState<TradingChartData[]>([]);
   const [interval, setInterval] = useState<TimeInterval>('1h');
-  const [chartType, setChartType] = useState<'line' | 'area' | 'candlestick'>('area');
+  const [chartType, setChartType] = useState<'line' | 'area' | 'candlestick' | 'volume'>('area');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -78,50 +78,50 @@ export default function TradingChart({ propertyId }: TradingChartProps) {
     }
   };
 
-  const formatTooltipValue = (value: any) => {
+  const formatTooltipValue = (value: number | string) => {
     return `$${Number(value).toFixed(2)}`;
   };
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: Array<{ payload: Record<string, unknown> }>; label?: string }) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       return (
         <div className="bg-black/90 border border-white/20 rounded-lg p-3 text-sm">
           <div className="text-gray-400 mb-2">
-            {new Date(data.timestamp).toLocaleString()}
+            {new Date(String(data.timestamp)).toLocaleString()}
           </div>
           {chartType === 'candlestick' ? (
             <>
               <div className="flex justify-between gap-4">
                 <span className="text-gray-400">O:</span>
-                <span className="text-white font-semibold">${data.open.toFixed(2)}</span>
+                <span className="text-white font-semibold">${Number(data.open).toFixed(2)}</span>
               </div>
               <div className="flex justify-between gap-4">
                 <span className="text-gray-400">H:</span>
-                <span className="text-emerald-400 font-semibold">${data.high.toFixed(2)}</span>
+                <span className="text-emerald-400 font-semibold">${Number(data.high).toFixed(2)}</span>
               </div>
               <div className="flex justify-between gap-4">
                 <span className="text-gray-400">L:</span>
-                <span className="text-red-400 font-semibold">${data.low.toFixed(2)}</span>
+                <span className="text-red-400 font-semibold">${Number(data.low).toFixed(2)}</span>
               </div>
               <div className="flex justify-between gap-4">
                 <span className="text-gray-400">C:</span>
-                <span className="text-white font-semibold">${data.close.toFixed(2)}</span>
+                <span className="text-white font-semibold">${Number(data.close).toFixed(2)}</span>
               </div>
               <div className="flex justify-between gap-4 mt-1 pt-1 border-t border-white/10">
                 <span className="text-gray-400">Vol:</span>
-                <span className="text-white">{data.volume.toLocaleString()}</span>
+                <span className="text-white">{Number(data.volume).toLocaleString()}</span>
               </div>
             </>
           ) : (
             <>
               <div className="flex justify-between gap-4">
                 <span className="text-gray-400">Price:</span>
-                <span className="text-white font-semibold">${data.close.toFixed(2)}</span>
+                <span className="text-white font-semibold">${Number(data.close).toFixed(2)}</span>
               </div>
               <div className="flex justify-between gap-4">
                 <span className="text-gray-400">Volume:</span>
-                <span className="text-white">{data.volume.toLocaleString()}</span>
+                <span className="text-white">{Number(data.volume).toLocaleString()}</span>
               </div>
             </>
           )}
@@ -132,28 +132,33 @@ export default function TradingChart({ propertyId }: TradingChartProps) {
   };
 
   // Candlestick rendering component
-  const CandlestickBar = (props: any) => {
+  const CandlestickBar = (props: Record<string, unknown>) => {
     const { x, y, width, height, payload } = props;
-    const isGreen = payload.close >= payload.open;
-    const bodyY = isGreen ? y + (height - height * (payload.close - payload.low) / (payload.high - payload.low)) : y + (height - height * (payload.open - payload.low) / (payload.high - payload.low));
-    const bodyHeight = Math.abs((payload.close - payload.open) / (payload.high - payload.low) * height);
+    const data = payload as Record<string, unknown>;
+    const xNum = Number(x);
+    const yNum = Number(y);
+    const widthNum = Number(width);
+    const heightNum = Number(height);
+    const isGreen = Number(data.close) >= Number(data.open);
+    const bodyY = isGreen ? yNum + (heightNum - heightNum * (Number(data.close) - Number(data.low)) / (Number(data.high) - Number(data.low))) : yNum + (heightNum - heightNum * (Number(data.open) - Number(data.low)) / (Number(data.high) - Number(data.low)));
+    const bodyHeight = Math.abs((Number(data.close) - Number(data.open)) / (Number(data.high) - Number(data.low)) * heightNum);
     
     return (
       <g>
         {/* Wick */}
         <line
-          x1={x + width / 2}
-          y1={y}
-          x2={x + width / 2}
-          y2={y + height}
+          x1={xNum + widthNum / 2}
+          y1={yNum}
+          x2={xNum + widthNum / 2}
+          y2={yNum + heightNum}
           stroke={isGreen ? '#10b981' : '#ef4444'}
           strokeWidth={1}
         />
         {/* Body */}
         <rect
-          x={x + width * 0.2}
+          x={xNum + widthNum * 0.2}
           y={bodyY}
-          width={width * 0.6}
+          width={widthNum * 0.6}
           height={Math.max(bodyHeight, 1)}
           fill={isGreen ? '#10b981' : '#ef4444'}
           stroke={isGreen ? '#10b981' : '#ef4444'}
@@ -295,7 +300,7 @@ export default function TradingChart({ propertyId }: TradingChartProps) {
             {CHART_TYPES.map((type) => (
               <button
                 key={type.value}
-                onClick={() => setChartType(type.value as any)}
+                onClick={() => setChartType(type.value as 'candlestick' | 'line' | 'volume')}
                 className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                   chartType === type.value
                     ? 'bg-emerald-600 text-white'
@@ -352,7 +357,7 @@ export default function TradingChart({ propertyId }: TradingChartProps) {
                 fontSize: '12px'
               }}
               labelFormatter={(timestamp) => new Date(timestamp).toLocaleString()}
-              formatter={(value: any) => [value.toLocaleString(), 'Volume']}
+              formatter={(value: number) => [value.toLocaleString(), 'Volume']}
             />
             <Bar dataKey="volume" fill="#10b981" opacity={0.6} />
           </BarChart>

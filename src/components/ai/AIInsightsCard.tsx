@@ -73,8 +73,8 @@ export default function AIInsightsCard({ property, compact = false }: AIInsights
       } else {
         setError(data.error || 'Analysis failed');
       }
-    } catch (error: any) {
-      setError(error.message);
+    } catch (error: unknown) {
+      setError(error instanceof Error ? error.message : 'Unknown error');
     } finally {
       setLoading(false);
     }
@@ -327,10 +327,10 @@ export default function AIInsightsCard({ property, compact = false }: AIInsights
               <div className="bg-blue-50 p-4 rounded-lg">
                 <h3 className="text-sm font-semibold text-blue-800 mb-1">Listed Value</h3>
                 <p className="text-2xl font-bold text-blue-600">
-                  {formatCurrency(property.total_value)}
+                  {formatCurrency(property.total_value || 0)}
                 </p>
                 <p className="text-xs text-blue-700 mt-1">
-                  Difference: {formatCurrency(insights.valuation.estimated_value - property.total_value)}
+                  Difference: {formatCurrency(insights.valuation.estimated_value - (property.total_value || 0))}
                 </p>
               </div>
 

@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Property ID is required' }, { status: 400 });
     }
 
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Check if property has treasury account with topic_id
     const { data: treasuryData, error: treasuryError } = await supabase
@@ -44,10 +44,10 @@ export async function GET(request: NextRequest) {
       propertyId,
       treasuryAccount: {
         exists: !!treasuryData,
-        hasTopicId: !!treasuryData?.topic_id,
-        topicId: treasuryData?.topic_id || null,
-        tokenId: treasuryData?.token_id || null,
-        status: treasuryData?.status || null
+        hasTopicId: !!(treasuryData as Record<string, unknown>)?.topic_id,
+        topicId: (treasuryData as Record<string, unknown>)?.topic_id || null,
+        tokenId: (treasuryData as Record<string, unknown>)?.token_id || null,
+        status: (treasuryData as Record<string, unknown>)?.status || null
       },
       events: {
         count: eventsData?.length || 0,

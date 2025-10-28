@@ -11,7 +11,7 @@ interface SaveData {
   topic: string;
   pairingString: string;
   privateKey: string;
-  pairedWalletData: any;
+  pairedWalletData: Record<string, unknown> | null;
   pairedAccounts: string[];
 }
 
@@ -24,7 +24,7 @@ export default function WalletConnect({
   const [accountId, setAccountId] = useState<string>('');
   const [pairingString, setPairingString] = useState<string>('');
   const [showQR, setShowQR] = useState(false);
-  const [hashconnect, setHashconnect] = useState<any>(null);
+  const [hashconnect, setHashconnect] = useState<unknown>(null);
   const [saveData, setSaveData] = useState<SaveData>({
     topic: '',
     pairingString: '',
@@ -64,7 +64,8 @@ export default function WalletConnect({
 
         // Try to restore saved session first
         const savedData = localStorage.getItem("hashconnectData");
-        let initData: any, state: any;
+        let initData: Record<string, unknown> = {};
+        let state: unknown = null;
         let useFreshSession = false;
 
         // Check if we've had encryption errors recently
@@ -83,10 +84,10 @@ export default function WalletConnect({
             
             // Try to restore with saved encryption key
             if (parsedData.encryptionKey) {
-              initData = await hc.init(appMetadata, parsedData.encryptionKey);
+              initData = await hc.init(appMetadata, parsedData.encryptionKey) as unknown as Record<string, unknown>;
               console.log('Restored encryption key');
             } else {
-              initData = await hc.init(appMetadata);
+              initData = await hc.init(appMetadata) as unknown as Record<string, unknown>;
             }
             
             // Try to restore connection if we have a topic
@@ -124,26 +125,26 @@ export default function WalletConnect({
         if (!savedData || useFreshSession) {
           // No saved data or restoration failed, start fresh
           console.log('Starting fresh session...');
-          initData = await hc.init(appMetadata);
+          initData = await hc.init(appMetadata) as unknown as Record<string, unknown>;
           state = await hc.connect();
         }
 
         const newSaveData = {
           ...saveData,
-          privateKey: initData.privKey,
+          privateKey: (initData as Record<string, unknown>)?.privKey as string || '',
         };
         setSaveData(newSaveData);
         console.log(`- Private key for pairing: ${newSaveData.privateKey}`);
 
         const updatedSaveData = {
           ...newSaveData,
-          topic: state.topic,
+          topic: (state as Record<string, unknown>)?.topic as string || '',
         };
         setSaveData(updatedSaveData);
         console.log(`- Pairing topic is: ${updatedSaveData.topic}`);
 
         // Generate a pairing string
-        const pairingString = hc.generatePairingString(state, "testnet", false);
+        const pairingString = hc.generatePairingString(state as unknown as { topic: string; expires: number }, "testnet", false);
         const finalSaveData = {
           ...updatedSaveData,
           pairingString,
@@ -153,8 +154,8 @@ export default function WalletConnect({
 
         // Save session data for restoration
         const sessionData = {
-          encryptionKey: initData.privKey,
-          topic: state.topic,
+          encryptionKey: (initData as Record<string, unknown>)?.privKey as string || '',
+          topic: (state as Record<string, unknown>)?.topic as string || '',
           pairingData: null, // Will be updated when paired
         };
         localStorage.setItem("hashconnectData", JSON.stringify(sessionData));
@@ -164,23 +165,24 @@ export default function WalletConnect({
 
         // Listen for pairing events
         if (hc.pairingEvent) {
-          hc.pairingEvent.on((pairingData: any) => {
-            console.log('Paired with wallet:', pairingData);
+          hc.pairingEvent.on((pairingData: unknown) => {
+            const pairing = pairingData as Record<string, unknown>;
+            console.log('Paired with wallet:', pairing);
             const finalData = {
               ...finalSaveData,
-              pairedWalletData: pairingData,
-              pairedAccounts: pairingData.accountIds || [],
+              pairedWalletData: pairing,
+              pairedAccounts: (pairing.accountIds as string[]) || [],
             };
             setSaveData(finalData);
             
             // Update saved session with pairing data
             const updatedSessionData = {
               ...sessionData,
-              pairingData: pairingData,
+              pairingData: pairing,
             };
             localStorage.setItem("hashconnectData", JSON.stringify(updatedSessionData));
             
-            const account = pairingData.accountIds?.[0] || '';
+            const account = ((pairing.accountIds as string[]) || [])[0] || '';
             setAccountId(account);
             setStatus('connected');
             onConnected?.(account);
@@ -189,9 +191,10 @@ export default function WalletConnect({
 
         // Listen for connection status (if available)
         if (hc.connectionStatusChange) {
-          hc.connectionStatusChange.on((connectionStatus: any) => {
-            console.log('Connection status:', connectionStatus);
-            if (connectionStatus === 'Disconnected') {
+          hc.connectionStatusChange.on((connectionStatus: unknown) => {
+            const status = connectionStatus as string;
+            console.log('Connection status:', status);
+            if (status === 'Disconnected') {
               setStatus('disconnected');
               setAccountId('');
               // Clear saved session on disconnect
@@ -276,7 +279,8 @@ export default function WalletConnect({
     setLoading(true);
     try {
       console.log('Connecting to local wallet...');
-      await hashconnect.connectToLocalWallet(saveData.pairingString);
+      const hc = hashconnect as unknown as { connectToLocalWallet: (pairingString: string) => Promise<void> };
+      await hc.connectToLocalWallet(saveData.pairingString);
     } catch (error) {
       console.error('Failed to connect to local wallet:', error);
       
@@ -299,7 +303,8 @@ export default function WalletConnect({
     if (!hashconnect || !saveData.topic) return;
     
     try {
-      await hashconnect.disconnect(saveData.topic);
+      const hc = hashconnect as unknown as { disconnect: (topic: string) => Promise<void> };
+      await hc.disconnect(saveData.topic);
       setStatus('disconnected');
       setAccountId('');
       setSaveData(prev => ({
@@ -321,8 +326,12 @@ export default function WalletConnect({
       const messageBytes = new TextEncoder().encode(challenge);
       
       // Get the signer for the connected account
-      const provider = hashconnect.getProvider("testnet", saveData.topic, accountId);
-      const signer = hashconnect.getSigner(provider);
+      const hc = hashconnect as unknown as {
+        getProvider: (network: string, topic: string, accountId: string) => unknown;
+        getSigner: (provider: unknown) => { sign: (message: Uint8Array) => Promise<Uint8Array> };
+      };
+      const provider = hc.getProvider("testnet", saveData.topic, accountId);
+      const signer = hc.getSigner(provider);
       
       // Sign the message
       const signature = await signer.sign(messageBytes);
@@ -424,7 +433,7 @@ export default function WalletConnect({
                 <p className="text-xs text-black break-all bg-gray-100 p-2 rounded">{pairingString}</p>
                 <div className="text-xs text-gray-600 mt-2 space-y-1">
                   <p>1. Open HashPack mobile app</p>
-                  <p>2. Tap "Connect Wallet" or scan QR code</p>
+                  <p>2. Tap &quot;Connect Wallet&quot; or scan QR code</p>
                   <p>3. Enter the pairing string above</p>
                   <p>4. Approve the connection</p>
                 </div>
@@ -438,7 +447,7 @@ export default function WalletConnect({
         
         {status === 'ready' && !showQR && (
           <div className="text-xs text-gray-400">
-            HashConnect ready - click "Connect HashPack" to pair with your wallet
+            HashConnect ready - click &quot;Connect HashPack&quot; to pair with your wallet
           </div>
         )}
         

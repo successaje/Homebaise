@@ -11,10 +11,11 @@ const supabase = createClient(
 // GET /api/properties/[id]/investment-summary - Get property investment summary
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const propertyId = params.id;
+    const { id } = await params;
+    const propertyId = id;
 
     // Get investment summary from the view
     const { data: summary, error } = await supabase

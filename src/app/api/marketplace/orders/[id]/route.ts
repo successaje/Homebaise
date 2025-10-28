@@ -10,9 +10,10 @@ const supabase = createClient(
 // DELETE /api/marketplace/orders/[id] - Cancel an order
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const authHeader = request.headers.get('authorization');
     if (!authHeader) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -25,7 +26,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Invalid authentication' }, { status: 401 });
     }
 
-    const result = await MarketplaceTradingService.cancelOrder(user.id, params.id);
+    const result = await MarketplaceTradingService.cancelOrder(user.id, id);
 
     if (!result.success) {
       return NextResponse.json(
@@ -38,7 +39,7 @@ export async function DELETE(
       { message: 'Order cancelled successfully' },
       { status: 200 }
     );
-  } catch (error: any) {
+    } catch (error: unknown) {
     console.error('Error in DELETE /api/marketplace/orders/[id]:', error);
     return NextResponse.json(
       { error: 'Internal server error' },

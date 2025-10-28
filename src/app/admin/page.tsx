@@ -196,7 +196,7 @@ export default function AdminPage() {
     rejectionReason?: string
   ) => {
     try {
-      const updateData: any = {
+      const updateData: Record<string, unknown> = {
         status: newStatus,
         updated_at: new Date().toISOString(),
       };
@@ -779,7 +779,7 @@ export default function AdminPage() {
       {/* Property Approval Modal */}
       {selectedProperty && (
         <PropertyApprovalModal
-          property={selectedProperty}
+          property={selectedProperty as unknown as Record<string, unknown>}
           isOpen={approvalModalOpen}
           onClose={() => setApprovalModalOpen(false)}
           onApproved={handleApprovalComplete}

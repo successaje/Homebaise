@@ -76,7 +76,8 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient();
     
     // Try to get session from cookies first
-    let { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    const { data: { session: initialSession }, error: sessionError } = await supabase.auth.getSession();
+    let session = initialSession;
     
     // If no session from cookies, try to get user from Authorization header
     if (sessionError || !session) {
@@ -111,7 +112,7 @@ export async function POST(request: NextRequest) {
         }
         
         // Create a mock session object
-        session = {
+        const mockSession = {
           user,
           access_token: token,
           refresh_token: '',
@@ -120,6 +121,7 @@ export async function POST(request: NextRequest) {
           expires_in: 3600
         };
         
+        session = mockSession;
         console.log('Created session from Authorization token for user:', user.id);
       } else {
         console.error('Session error or no session found:', sessionError?.message || 'No active session');
@@ -305,7 +307,7 @@ export async function POST(request: NextRequest) {
           token_type: tokenType,
           topic_id: topicId, // Add HCS topic ID
           initial_balance_hbar: Number(treasuryAccount.initialBalance.toTinybars()) / 1e8,
-          token_balance: tokenType === 'NON_FUNGIBLE' ? 1 : (tokenResult as any).totalSupply || 0,
+          token_balance: tokenType === 'NON_FUNGIBLE' ? 1 : (tokenResult as unknown as Record<string, unknown>).totalSupply as number || 0,
           status: 'active',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
@@ -314,7 +316,7 @@ export async function POST(request: NextRequest) {
       if (treasuryError) {
         console.error('Error saving treasury account:', treasuryError);
         return NextResponse.json(
-          { error: 'Failed to save treasury account', details: (treasuryError as any)?.message || treasuryError },
+          { error: 'Failed to save treasury account', details: treasuryError instanceof Error ? treasuryError.message : String(treasuryError) },
           { status: 500 }
         );
       }
@@ -369,7 +371,7 @@ export async function POST(request: NextRequest) {
         token: {
           tokenId: tokenResult.tokenId,
           tokenType: tokenType,
-          ...(tokenType === 'NON_FUNGIBLE' ? { nftId: tokenResult.tokenId } : { totalSupply: (tokenResult as any).totalSupply }),
+          ...(tokenType === 'NON_FUNGIBLE' ? { nftId: tokenResult.tokenId } : { totalSupply: (tokenResult as unknown as Record<string, unknown>).totalSupply as number }),
         },
         property: {
           id: propertyId,

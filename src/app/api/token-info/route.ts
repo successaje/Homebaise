@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
       kycKey: info.kycKey ? String(info.kycKey) : null,
       wipeKey: info.wipeKey ? String(info.wipeKey) : null,
       pauseKey: info.pauseKey ? String(info.pauseKey) : null,
-      customFees: info.customFees ? info.customFees.map((f: any) => String(f)) : [],
+      customFees: info.customFees ? info.customFees.map((f: unknown) => String(f)) : [],
     }
 
     return NextResponse.json({ success: true, token: result })

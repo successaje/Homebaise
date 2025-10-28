@@ -72,7 +72,7 @@ export default function InvestmentConfirmation({ investment, onClose }: Investme
 
         {/* Next Steps */}
         <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-6">
-          <h3 className="text-white font-semibold mb-3">What's Next?</h3>
+          <h3 className="text-white font-semibold mb-3">What&apos;s Next?</h3>
           <div className="space-y-2 text-sm">
             <div className="flex items-start space-x-2">
               <span className="text-emerald-400">1.</span>
@@ -80,7 +80,7 @@ export default function InvestmentConfirmation({ investment, onClose }: Investme
             </div>
             <div className="flex items-start space-x-2">
               <span className="text-emerald-400">2.</span>
-              <span className="text-gray-300">You'll receive monthly yield payments starting next month</span>
+              <span className="text-gray-300">You&apos;ll receive monthly yield payments starting next month</span>
             </div>
             <div className="flex items-start space-x-2">
               <span className="text-emerald-400">3.</span>

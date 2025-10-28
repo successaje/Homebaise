@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     );
 
     return NextResponse.json({ orders }, { status: 200 });
-  } catch (error: any) {
+    } catch (error: unknown) {
     console.error('Error in GET /api/marketplace/orders:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
       { order: result.order, message: 'Order created successfully' },
       { status: 201 }
     );
-  } catch (error: any) {
+    } catch (error: unknown) {
     console.error('Error in POST /api/marketplace/orders:', error);
     return NextResponse.json(
       { error: 'Internal server error' },

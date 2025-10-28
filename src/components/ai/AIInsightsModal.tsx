@@ -76,8 +76,8 @@ export default function AIInsightsModal({ property, isOpen, onClose }: AIInsight
       } else {
         setError(data.error || 'Analysis failed');
       }
-    } catch (error: any) {
-      setError(error.message);
+    } catch (error: unknown) {
+      setError(error instanceof Error ? error.message : 'Unknown error');
     } finally {
       setLoading(false);
     }

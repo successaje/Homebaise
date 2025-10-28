@@ -9,7 +9,7 @@ const supabase = createClient(
 )
 
 interface PropertyApprovalModalProps {
-  property: any
+  property: Record<string, unknown>
   isOpen: boolean
   onClose: () => void
   onApproved: () => void
@@ -33,11 +33,11 @@ export default function PropertyApprovalModal({ property, isOpen, onClose, onApp
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          propertyId: property.id,
-          propertyName: property.title || property.name,
-          location: property.location,
-          valuationUSD: property.total_value,
-          tokenSymbol: `HB-${property.id.substring(0, 6).toUpperCase()}`,
+          propertyId: String(property.id),
+          propertyName: String(property.title || property.name),
+          location: String(property.location),
+          valuationUSD: Number(property.total_value || 0),
+          tokenSymbol: `HB-${String(property.id).substring(0, 6).toUpperCase()}`,
           approvalNotes
         }),
       })
@@ -62,7 +62,7 @@ export default function PropertyApprovalModal({ property, isOpen, onClose, onApp
           certificate_number: certificateNumber,
           certificate_issued_at: new Date().toISOString()
         })
-        .eq('id', property.id)
+        .eq('id', String(property.id))
 
       if (propertyError) {
         console.error('Error updating property with certificate:', propertyError)
@@ -94,7 +94,7 @@ export default function PropertyApprovalModal({ property, isOpen, onClose, onApp
           rejection_reason: reason,
           updated_at: new Date().toISOString()
         })
-        .eq('id', property.id)
+        .eq('id', String(property.id))
 
       if (error) {
         console.error('Error rejecting property:', error)
@@ -127,51 +127,57 @@ export default function PropertyApprovalModal({ property, isOpen, onClose, onApp
         {/* Property Details */}
         <div className="space-y-4 mb-6">
           <div className="bg-white/5 rounded-lg p-4">
-            <h3 className="text-lg font-semibold text-white mb-3">{property.name || property.title}</h3>
+            <h3 className="text-lg font-semibold text-white mb-3">{String(property.name || property.title)}</h3>
             
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="text-gray-400">Location:</span>
-                <span className="text-white ml-2">{property.location || property.city}, {property.country}</span>
+                <span className="text-white ml-2">{String(property.location || property.city)}, {String(property.country)}</span>
               </div>
               <div>
                 <span className="text-gray-400">Type:</span>
-                <span className="text-white ml-2 capitalize">{property.property_type}</span>
+                <span className="text-white ml-2 capitalize">{String(property.property_type)}</span>
               </div>
               <div>
                 <span className="text-gray-400">Value:</span>
-                <span className="text-white ml-2">${property.total_value?.toLocaleString()}</span>
+                <span className="text-white ml-2">${Number(property.total_value || 0).toLocaleString()}</span>
               </div>
               <div>
                 <span className="text-gray-400">Yield Rate:</span>
-                <span className="text-emerald-400 ml-2">{property.yield_rate}</span>
+                <span className="text-emerald-400 ml-2">{String(property.yield_rate)}</span>
               </div>
             </div>
 
-            {property.description && (
-              <div className="mt-3">
-                <span className="text-gray-400 text-sm">Description:</span>
-                <p className="text-white text-sm mt-1">{property.description}</p>
-              </div>
-            )}
+            {(() => {
+              const description = String(property.description || '');
+              return description.trim() ? (
+                <div className="mt-3">
+                  <span className="text-gray-400 text-sm">Description:</span>
+                  <p className="text-white text-sm mt-1">{description}</p>
+                </div>
+              ) : null;
+            })()}
           </div>
 
           {/* Property Images */}
-          {(property.images && property.images.length > 0) && (
-            <div className="bg-white/5 rounded-lg p-4">
-              <h4 className="text-white font-medium mb-3">Property Images</h4>
-              <div className="grid grid-cols-3 gap-2">
-                {property.images.slice(0, 6).map((image: string, index: number) => (
-                  <img
-                    key={index}
-                    src={image}
-                    alt={`Property ${index + 1}`}
-                    className="w-full h-20 object-cover rounded-lg"
-                  />
-                ))}
+          {(() => {
+            const images = property.images as string[] | undefined;
+            return images && Array.isArray(images) && images.length > 0 ? (
+              <div className="bg-white/5 rounded-lg p-4">
+                <h4 className="text-white font-medium mb-3">Property Images</h4>
+                <div className="grid grid-cols-3 gap-2">
+                  {images.slice(0, 6).map((image: string, index: number) => (
+                    <img
+                      key={index}
+                      src={image}
+                      alt={`Property ${index + 1}`}
+                      className="w-full h-20 object-cover rounded-lg"
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            ) : null;
+          })()}
         </div>
 
         {/* Approval Notes */}

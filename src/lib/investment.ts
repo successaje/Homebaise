@@ -137,7 +137,7 @@ export class InvestmentService {
     status: 'pending' | 'completed' | 'failed' | 'cancelled',
     transactionHash?: string
   ): Promise<Investment> {
-    const updateData: any = { status };
+    const updateData: Record<string, unknown> = { status };
     
     if (status === 'completed') {
       updateData.completed_at = new Date().toISOString();
@@ -278,7 +278,7 @@ export class InvestmentService {
   /**
    * Get investment performance for a user
    */
-  static async getInvestmentPerformance(userId: string): Promise<any[]> {
+  static async getInvestmentPerformance(userId: string): Promise<Record<string, unknown>[]> {
     const { data, error } = await supabase
       .from('investment_performance')
       .select('*')

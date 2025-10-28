@@ -341,7 +341,7 @@ export async function getHbarUsdPrice(): Promise<number> {
       // Avoid cache to get fresh pricing
       cache: 'no-store'
     });
-    const data = await res.json().catch(() => ({} as any));
+    const data = await res.json().catch(() => ({} as Record<string, unknown>));
     const price = data?.['hedera-hashgraph']?.usd;
     if (typeof price === 'number' && price > 0) return price;
   } catch {}

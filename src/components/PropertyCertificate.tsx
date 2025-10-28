@@ -203,7 +203,9 @@ export default function PropertyCertificate({
     );
   }
 
-  const complianceScore = metadata.certificate_data.metadata.complianceScore;
+  const certData = metadata.certificate_data as Record<string, unknown>;
+  const certificateMetadata = certData?.metadata as Record<string, unknown>;
+  const complianceScore = (certificateMetadata?.complianceScore as number) || 0;
   const scoreColor = complianceScore >= 90 ? 'text-green-600' : 
                     complianceScore >= 70 ? 'text-yellow-600' : 'text-red-600';
 
@@ -214,7 +216,7 @@ export default function PropertyCertificate({
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-xl font-bold">Property Verification Certificate</h3>
-            <p className="text-blue-100 text-sm">Certificate #{metadata.certificate_data.certificateNumber}</p>
+            <p className="text-blue-100 text-sm">Certificate #{String(certData?.certificateNumber || 'N/A')}</p>
           </div>
           <div className="text-right">
             <div className={`text-2xl font-bold ${scoreColor}`}>
@@ -234,15 +236,15 @@ export default function PropertyCertificate({
             <div className="space-y-2">
               <div>
                 <span className="text-sm text-gray-500">Property Name:</span>
-                <p className="font-medium">{metadata.certificate_data.propertyName}</p>
+                <p className="font-medium">{String(certData?.propertyName || 'N/A')}</p>
               </div>
               <div>
                 <span className="text-sm text-gray-500">Location:</span>
-                <p className="font-medium">{metadata.certificate_data.location}</p>
+                <p className="font-medium">{String(certData?.location || 'N/A')}</p>
               </div>
               <div>
                 <span className="text-sm text-gray-500">Total Value:</span>
-                <p className="font-medium">${metadata.certificate_data.totalValue.toLocaleString()}</p>
+                <p className="font-medium">${Number(certData?.totalValue || 0).toLocaleString()}</p>
               </div>
             </div>
           </div>
@@ -270,9 +272,9 @@ export default function PropertyCertificate({
             <div>
               <span className="text-sm text-gray-500">Token ID:</span>
               <div className="flex items-center space-x-2">
-                <p className="font-mono text-sm truncate">{metadata.certificate_data.tokenId}</p>
+                <p className="font-mono text-sm truncate">{String(certData?.tokenId || 'N/A')}</p>
                 <button
-                  onClick={() => copyToClipboard(metadata.certificate_data.tokenId, 'Token ID')}
+                  onClick={() => copyToClipboard(String(certData?.tokenId || 'N/A'), 'Token ID')}
                   className="text-blue-600 hover:text-blue-700"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -283,16 +285,16 @@ export default function PropertyCertificate({
             </div>
             <div>
               <span className="text-sm text-gray-500">Issued Date:</span>
-              <p className="font-medium">{new Date(metadata.certificate_data.issuedDate).toLocaleDateString()}</p>
+              <p className="font-medium">{new Date(String(certData?.issuedDate || '')).toLocaleDateString()}</p>
             </div>
             <div>
               <span className="text-sm text-gray-500">Status:</span>
               <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                metadata.certificate_data.status === 'active' 
+                String(certData?.status || '') === 'active' 
                   ? 'bg-green-100 text-green-800' 
                   : 'bg-red-100 text-red-800'
               }`}>
-                {metadata.certificate_data.status.toUpperCase()}
+                {String(certData?.status || '').toUpperCase()}
               </span>
             </div>
           </div>

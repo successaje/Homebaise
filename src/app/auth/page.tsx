@@ -54,8 +54,8 @@ export default function AuthPage() {
         if (error) throw error;
         router.push('/dashboard');
       }
-    } catch (error: any) {
-      setMessage(error.message);
+    } catch (error: unknown) {
+      setMessage(error instanceof Error ? error.message : 'Unknown error');
       setMessageType('error');
     } finally {
       setLoading(false);
@@ -75,8 +75,8 @@ export default function AuthPage() {
       });
       
       if (error) throw error;
-    } catch (error: any) {
-      setMessage(error.message);
+    } catch (error: unknown) {
+      setMessage(error instanceof Error ? error.message : 'Unknown error');
       setMessageType('error');
       setLoading(false);
     }

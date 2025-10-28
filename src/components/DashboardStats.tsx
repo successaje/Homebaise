@@ -91,9 +91,9 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ userId, className = '' 
           recentActivity,
           hcsVerifiedTransactions
         });
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Error fetching dashboard stats:', err);
-        setError(err.message || 'Failed to fetch stats');
+        setError(err instanceof Error ? err.message : 'Failed to fetch stats');
       } finally {
         setLoading(false);
       }

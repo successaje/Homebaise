@@ -511,7 +511,7 @@ export default function AgriculturePage() {
                 <div className="text-center">
                   <div className="text-3xl mb-3">🌍</div>
                   <h3 className="text-white font-semibold mb-2">Food Security</h3>
-                  <p className="text-gray-400 text-sm">Contribute to Africa's food security and economic growth</p>
+                  <p className="text-gray-400 text-sm">Contribute to Africa&apos;s food security and economic growth</p>
                 </div>
               </div>
             </div>

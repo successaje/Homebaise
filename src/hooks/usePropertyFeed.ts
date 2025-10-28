@@ -11,7 +11,7 @@ export interface PropertyEvent {
   amount?: number;
   tx_id: string;
   hcs_tx_id?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   timestamp: string;
   created_at: string;
 }

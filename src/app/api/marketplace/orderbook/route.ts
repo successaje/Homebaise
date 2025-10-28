@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { MarketplaceTradingService } from '@/lib/marketplace-trading';
 
 // Mock order book data
-const MOCK_ORDER_BOOKS: Record<string, any> = {
+const MOCK_ORDER_BOOKS: Record<string, Record<string, unknown>> = {
   'mock-1': {
     bids: [
       { property_id: 'mock-1', order_type: 'buy', price_per_token: 51.50, total_amount: 500, order_count: 3 },
@@ -103,11 +103,11 @@ export async function GET(request: NextRequest) {
         {
           orderBook: mockOrderBook,
           marketDepth: {
-            bids: mockOrderBook.bids,
-            asks: mockOrderBook.asks,
+            bids: (mockOrderBook as Record<string, unknown>).bids as Record<string, unknown>[],
+            asks: (mockOrderBook as Record<string, unknown>).asks as Record<string, unknown>[],
             max_total: Math.max(
-              ...mockOrderBook.bids.map((b: any) => b.total_amount),
-              ...mockOrderBook.asks.map((a: any) => a.total_amount)
+              ...((mockOrderBook as Record<string, unknown>).bids as Record<string, unknown>[]).map((b: Record<string, unknown>) => b.total_amount as number),
+              ...((mockOrderBook as Record<string, unknown>).asks as Record<string, unknown>[]).map((a: Record<string, unknown>) => a.total_amount as number)
             )
           },
           timestamp: new Date().toISOString()
@@ -127,7 +127,7 @@ export async function GET(request: NextRequest) {
       },
       { status: 200 }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error in GET /api/marketplace/orderbook:', error);
     return NextResponse.json(
       { error: 'Internal server error' },

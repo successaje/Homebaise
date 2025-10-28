@@ -24,7 +24,7 @@ export interface PropertyAnalysisData {
     status: string;
   };
   market_data: {
-    similar_properties: any[];
+    similar_properties: Record<string, unknown>[];
     market_trends: {
       price_per_sqm: number;
       average_yield: number;
@@ -272,11 +272,11 @@ export class PropertyAnalysisService {
   /**
    * Calculate financial metrics for the property
    */
-  private static calculateFinancialMetrics(property: any) {
+  private static calculateFinancialMetrics(property: Record<string, unknown>) {
     const yieldRateStr = property.yield_rate || '0%';
     const yieldRate = parseFloat(yieldRateStr.toString().replace('%', '')) || 0;
-    const areaSqm = property.area_sqm || 1000; // Default area
-    const totalValue = property.total_value || 0;
+    const areaSqm = Number(property.area_sqm || 1000); // Default area
+    const totalValue = Number(property.total_value || 0);
     const pricePerSqm = areaSqm > 0 ? totalValue / areaSqm : 0;
     
     // Estimate cap rate (simplified calculation)
@@ -294,7 +294,7 @@ export class PropertyAnalysisService {
   /**
    * Assess risk factors for the property
    */
-  private static assessRiskFactors(property: any, location: string) {
+  private static assessRiskFactors(property: Record<string, unknown>, location: string) {
     const locationRisks: string[] = [];
     const marketRisks: string[] = [];
     const propertyRisks: string[] = [];
@@ -329,7 +329,8 @@ export class PropertyAnalysisService {
     }
 
     // Property-specific risks
-    if (property.year_built && property.year_built < 2000) {
+    const yearBuilt = Number(property.year_built || 0);
+    if (yearBuilt > 0 && yearBuilt < 2000) {
       propertyRisks.push('Older building may need maintenance');
     }
     if (property.property_type === 'commercial') {
@@ -386,12 +387,13 @@ FINANCIAL METRICS:
 - Current Yield: ${financial_metrics.current_yield}%
 - Price per sqm: $${financial_metrics.price_per_sqm.toFixed(2)}
 - Capitalization Rate: ${(financial_metrics.capitalization_rate * 100).toFixed(2)}%
-- Occupancy Rate: ${(financial_metrics.occupancy_rate * 100).toFixed(1)}%
+- Occupancy Rate: ${((financial_metrics.occupancy_rate || 0) * 100).toFixed(1)}%
 
 SIMILAR PROPERTIES:
-${market_data.similar_properties.map(p => 
-  `- ${p.name}: $${p.price.toLocaleString()} (${p.area} sqm, ${p.yield}% yield, ${p.type})`
-).join('\n')}
+${market_data.similar_properties.map(p => {
+  const prop = p as Record<string, unknown>;
+  return `- ${String(prop.name || 'N/A')}: $${Number(prop.price || 0).toLocaleString()} (${Number(prop.area || 0)} sqm, ${Number(prop.yield || 0)}% yield, ${String(prop.type || 'N/A')})`;
+}).join('\n')}
 
 RISK FACTORS:
 Location Risks: ${risk_factors.location_risks.join(', ')}

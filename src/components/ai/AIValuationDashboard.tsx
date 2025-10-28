@@ -83,10 +83,10 @@ export default function AIValuationDashboard({ property, onAnalysisComplete }: A
             location: property.location,
             property_type: property.property_type,
             total_value: property.total_value,
-            area_sqm: property.area_sqm,
-            bedrooms: property.bedrooms,
-            bathrooms: property.bathrooms,
-            year_built: property.year_built,
+            area_sqm: property.property_details?.property_size ? parseFloat(property.property_details.property_size) : 0,
+            bedrooms: 0, // Not available in current schema
+            bathrooms: 0, // Not available in current schema
+            year_built: 0, // Not available in current schema
             description: property.description,
             images: property.images
           }
@@ -104,8 +104,8 @@ export default function AIValuationDashboard({ property, onAnalysisComplete }: A
           setAnalysis(data.fallback_analysis);
         }
       }
-    } catch (error: any) {
-      setError(error.message);
+    } catch (error: unknown) {
+      setError(error instanceof Error ? error.message : 'Unknown error');
     } finally {
       setLoading(false);
     }
@@ -247,7 +247,7 @@ export default function AIValuationDashboard({ property, onAnalysisComplete }: A
           ].map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
+              onClick={() => setActiveTab(tab.id as 'valuation' | 'risk' | 'market' | 'insights')}
               className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
                 activeTab === tab.id
                   ? 'border-blue-500 text-blue-600'
@@ -280,10 +280,10 @@ export default function AIValuationDashboard({ property, onAnalysisComplete }: A
               <div className="bg-blue-50 p-6 rounded-lg">
                 <h3 className="text-lg font-semibold text-blue-800 mb-2">Listed Value</h3>
                 <p className="text-3xl font-bold text-blue-600">
-                  {formatCurrency(property.total_value)}
+                  {formatCurrency(property.total_value || 0)}
                 </p>
                 <p className="text-sm text-blue-700 mt-1">
-                  Difference: {formatCurrency(analysis.valuation.estimated_value - property.total_value)}
+                  Difference: {formatCurrency(analysis.valuation.estimated_value - (property.total_value || 0))}
                 </p>
               </div>
 

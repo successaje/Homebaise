@@ -77,7 +77,7 @@ const mockAnalytics: AnalyticsData = {
 };
 
 export default function AnalyticsPage() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [analytics, setAnalytics] = useState<AnalyticsData>(mockAnalytics);
   const [timeRange, setTimeRange] = useState<'1M' | '3M' | '6M' | '1Y' | 'ALL'>('ALL');

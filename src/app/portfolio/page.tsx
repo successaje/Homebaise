@@ -29,7 +29,7 @@ export default function PortfolioPage() {
     completedInvestments: 0
   });
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
 
   useEffect(() => {
     const init = async () => {

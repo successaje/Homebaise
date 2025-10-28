@@ -207,9 +207,9 @@ const DashboardActivityFeed: React.FC<DashboardActivityFeedProps> = ({
                           </div>
                         )}
 
-                        {activity.metadata?.location && (
+                        {activity.metadata && typeof activity.metadata === 'object' && 'location' in activity.metadata && (
                           <p className="text-xs text-gray-500">
-                            📍 {activity.metadata.location}
+                            📍 {String(activity.metadata.location)}
                           </p>
                         )}
                       </div>

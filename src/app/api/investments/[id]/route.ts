@@ -11,9 +11,10 @@ const supabase = createClient(
 // GET /api/investments/[id] - Get a specific investment
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const { data: investment, error } = await supabase
       .from('investments')
       .select(`
@@ -26,7 +27,7 @@ export async function GET(
           status
         )
       `)
-      .eq('id', params.id)
+      .eq('id', id)
       .single();
 
     if (error) {
@@ -50,9 +51,10 @@ export async function GET(
 // PUT /api/investments/[id] - Update an investment
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const body = await request.json();
     const updateData: UpdateInvestmentInput = body;
 
@@ -79,7 +81,7 @@ export async function PUT(
     const { data: existingInvestment, error: fetchError } = await supabase
       .from('investments')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('investor_id', user.id)
       .single();
 
@@ -106,7 +108,7 @@ export async function PUT(
     const { data: investment, error: updateError } = await supabase
       .from('investments')
       .update(updateData)
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
       .single();
 
@@ -135,9 +137,10 @@ export async function PUT(
 // DELETE /api/investments/[id] - Cancel an investment (only if pending)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     // Get the current user
     const authHeader = request.headers.get('authorization');
     if (!authHeader) {
@@ -161,7 +164,7 @@ export async function DELETE(
     const { data: existingInvestment, error: fetchError } = await supabase
       .from('investments')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('investor_id', user.id)
       .single();
 
@@ -183,7 +186,7 @@ export async function DELETE(
     const { error: updateError } = await supabase
       .from('investments')
       .update({ status: 'cancelled' })
-      .eq('id', params.id);
+      .eq('id', id);
 
     if (updateError) {
       console.error('Error cancelling investment:', updateError);

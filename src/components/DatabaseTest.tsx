@@ -9,7 +9,7 @@ const supabase = createClient(
 )
 
 export default function DatabaseTest() {
-  const [results, setResults] = useState<any>(null)
+  const [results, setResults] = useState<Record<string, unknown> | null>(null)
   const [loading, setLoading] = useState(false)
 
   const testDatabase = async () => {
@@ -96,23 +96,23 @@ export default function DatabaseTest() {
         <div className="mt-4">
           {results.success ? (
             <div className="text-green-400">
-              <p>✅ {results.message}</p>
-              {results.profile && (
+              <p>✅ {String(results.message)}</p>
+              {results.profile && typeof results.profile === 'object' ? (
                 <div className="mt-2 text-sm">
-                  <p><strong>Profile ID:</strong> {results.profile.id}</p>
-                  <p><strong>Email:</strong> {results.profile.email}</p>
-                  <p><strong>Full Name:</strong> {results.profile.full_name}</p>
-                  <p><strong>Role:</strong> {results.profile.role}</p>
-                  <p><strong>KYC Status:</strong> {results.profile.kyc_status}</p>
+                  <p><strong>Profile ID:</strong> {String((results.profile as Record<string, unknown>).id)}</p>
+                  <p><strong>Email:</strong> {String((results.profile as Record<string, unknown>).email)}</p>
+                  <p><strong>Full Name:</strong> {String((results.profile as Record<string, unknown>).full_name)}</p>
+                  <p><strong>Role:</strong> {String((results.profile as Record<string, unknown>).role)}</p>
+                  <p><strong>KYC Status:</strong> {String((results.profile as Record<string, unknown>).kyc_status)}</p>
                 </div>
-              )}
+              ) : null}
             </div>
           ) : (
             <div className="text-red-400">
-              <p>❌ Error: {results.error}</p>
-              {results.code && <p><strong>Code:</strong> {results.code}</p>}
-              {results.details && <p><strong>Details:</strong> {results.details}</p>}
-              {results.hint && <p><strong>Hint:</strong> {results.hint}</p>}
+              <p>❌ Error: {String(results.error)}</p>
+              {results.code ? <p><strong>Code:</strong> {String(results.code)}</p> : null}
+              {results.details ? <p><strong>Details:</strong> {String(results.details)}</p> : null}
+              {results.hint ? <p><strong>Hint:</strong> {String(results.hint)}</p> : null}
             </div>
           )}
         </div>

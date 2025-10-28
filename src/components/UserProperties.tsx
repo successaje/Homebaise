@@ -50,7 +50,7 @@ export default function UserProperties() {
   const [tokenizing, setTokenizing] = useState(false);
   const [tokenizationProgress, setTokenizationProgress] = useState<string>('');
   const [tokenizationStep, setTokenizationStep] = useState<string>('');
-  const [treasuryAccounts, setTreasuryAccounts] = useState<any[]>([]);
+  const [treasuryAccounts, setTreasuryAccounts] = useState<Record<string, unknown>[]>([]);
 
   // Fetch treasury accounts for properties
   useEffect(() => {
@@ -85,17 +85,17 @@ export default function UserProperties() {
 
   const getTokenIdForProperty = (propertyId: string): string | null => {
     const ta = getTreasuryAccount(propertyId);
-    return ta?.token_id || null;
+    return (ta?.token_id as string) || null;
   };
 
-  const [tokenInfoMap, setTokenInfoMap] = useState<Record<string, any>>({});
+  const [tokenInfoMap, setTokenInfoMap] = useState<Record<string, Record<string, unknown>>>({});
 
   // Fetch token info for tokenized properties
   useEffect(() => {
     const fetchTokenInfos = async () => {
-      const tokenized = treasuryAccounts.filter((ta) => !!ta.token_id);
+      const tokenized = treasuryAccounts.filter((ta) => !!(ta.token_id as string));
       for (const ta of tokenized) {
-        const tokenId: string = ta.token_id;
+        const tokenId: string = ta.token_id as string;
         if (!tokenId || tokenInfoMap[tokenId]) continue;
         try {
           const res = await fetch(`/api/token-info?tokenId=${encodeURIComponent(tokenId)}`);
@@ -505,13 +505,13 @@ export default function UserProperties() {
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-purple-400">Treasury Account:</span>
                     <span className="text-white font-mono">
-                      {getTreasuryAccount(property.id)?.hedera_account_id?.slice(0, 8)}...
+                      {(getTreasuryAccount(property.id)?.hedera_account_id as string)?.slice(0, 8)}...
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-xs mt-1">
                     <span className="text-purple-400">Balance:</span>
                     <span className="text-white">
-                      {getTreasuryAccount(property.id)?.current_balance_hbar || 0} HBAR
+                      {(getTreasuryAccount(property.id)?.current_balance_hbar as number) || 0} HBAR
                     </span>
                   </div>
                   {(() => {
@@ -522,37 +522,46 @@ export default function UserProperties() {
                       <div className="mt-2 p-2 bg-white/5 rounded">
                         <div className="grid grid-cols-2 gap-2 text-xs">
                           <div className="text-gray-400">Token ID</div>
-                          <div className="text-white font-mono truncate" title={info.tokenId}>{info.tokenId}</div>
+                          <div className="text-white font-mono truncate" title={String(info.tokenId)}>{String(info.tokenId)}</div>
                           <div className="text-gray-400">Name</div>
-                          <div className="text-white">{info.name}</div>
+                          <div className="text-white">{String(info.name)}</div>
                           <div className="text-gray-400">Symbol</div>
-                          <div className="text-white">{info.symbol}</div>
+                          <div className="text-white">{String(info.symbol)}</div>
                           <div className="text-gray-400">Total Supply</div>
-                          <div className="text-white">{info.totalSupply}</div>
+                          <div className="text-white">{String(info.totalSupply)}</div>
                           <div className="text-gray-400">Decimals</div>
-                          <div className="text-white">{info.decimals}</div>
+                          <div className="text-white">{String(info.decimals)}</div>
                           <div className="text-gray-400">Treasury</div>
-                          <div className="text-white font-mono truncate" title={info.treasuryAccountId}>{info.treasuryAccountId}</div>
+                          <div className="text-white font-mono truncate" title={String(info.treasuryAccountId)}>{String(info.treasuryAccountId)}</div>
                           <div className="text-gray-400">Supply Type</div>
-                          <div className="text-white">{info.supplyType || 'N/A'}</div>
+                          <div className="text-white">{String(info.supplyType || 'N/A')}</div>
                           <div className="text-gray-400">Freeze Default</div>
                           <div className="text-white">{String(info.freezeDefault)}</div>
-                          {info.expiry && (
-                            <>
-                              <div className="text-gray-400">Expiry</div>
-                              <div className="text-white">{new Date(info.expiry).toLocaleString()}</div>
-                            </>
-                          )}
+                          {(() => {
+                            const expiry = info.expiry as string | undefined;
+                            return expiry ? (
+                              <>
+                                <div className="text-gray-400">Expiry</div>
+                                <div className="text-white">{new Date(expiry).toLocaleString()}</div>
+                              </>
+                            ) : null;
+                          })()}
                         </div>
                         {/* Optional advanced fields */}
-                        {(info.adminKey || info.kycKey || info.wipeKey || info.pauseKey) && (
-                          <div className="mt-2 text-xs text-gray-400">
-                            {info.adminKey && <div>Admin Key: <span className="text-white font-mono break-all">{info.adminKey}</span></div>}
-                            {info.kycKey && <div>KYC Key: <span className="text-white font-mono break-all">{info.kycKey}</span></div>}
-                            {info.wipeKey && <div>Wipe Key: <span className="text-white font-mono break-all">{info.wipeKey}</span></div>}
-                            {info.pauseKey && <div>Pause Key: <span className="text-white font-mono break-all">{info.pauseKey}</span></div>}
-                          </div>
-                        )}
+                        {(() => {
+                          const adminKey = info.adminKey as string | undefined;
+                          const kycKey = info.kycKey as string | undefined;
+                          const wipeKey = info.wipeKey as string | undefined;
+                          const pauseKey = info.pauseKey as string | undefined;
+                          return (adminKey || kycKey || wipeKey || pauseKey) ? (
+                            <div className="mt-2 text-xs text-gray-400">
+                              {adminKey && <div>Admin Key: <span className="text-white font-mono break-all">{String(adminKey)}</span></div>}
+                              {kycKey && <div>KYC Key: <span className="text-white font-mono break-all">{String(kycKey)}</span></div>}
+                              {wipeKey && <div>Wipe Key: <span className="text-white font-mono break-all">{String(wipeKey)}</span></div>}
+                              {pauseKey && <div>Pause Key: <span className="text-white font-mono break-all">{String(pauseKey)}</span></div>}
+                            </div>
+                          ) : null;
+                        })()}
                       </div>
                     );
                   })()}

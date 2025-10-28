@@ -13,8 +13,8 @@ export interface IPFSMetadata {
   name: string;
   description?: string;
   image?: string;
-  attributes?: Record<string, any>;
-  [key: string]: any;
+  attributes?: Record<string, unknown>;
+  [key: string]: unknown;
 }
 
 /**
@@ -155,7 +155,7 @@ export const pinToIPFS = async (cid: string): Promise<boolean> => {
  * @param cid - The CID to get info for
  * @returns Promise with file information
  */
-export const getIPFSFileInfo = async (cid: string): Promise<any> => {
+export const getIPFSFileInfo = async (cid: string): Promise<Record<string, unknown>> => {
   try {
     const response = await fetch(`https://api.pinata.cloud/pinning/pinList?hashContains=${cid}`, {
       headers: {

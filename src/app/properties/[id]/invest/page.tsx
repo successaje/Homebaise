@@ -29,8 +29,8 @@ export default function InvestPage() {
   const [loading, setLoading] = useState(true);
   const [investing, setInvesting] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
-  const [user, setUser] = useState<any>(null);
-  const [userProfile, setUserProfile] = useState<any>(null);
+  const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
+  const [userProfile, setUserProfile] = useState<{ wallet_address?: string; hedera_private_key?: string; kyc_status?: string; hedera_account_id?: string } | null>(null);
   const [availableTokens, setAvailableTokens] = useState<number>(0);
   const [hbarPrice, setHbarPrice] = useState<number>(0);
   const [hbarEquivalent, setHbarEquivalent] = useState<number>(0);
@@ -332,7 +332,7 @@ export default function InvestPage() {
       <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-xl font-bold text-white mb-2">Property Not Found</h2>
-          <p className="text-gray-400 mb-4">The property you're looking for doesn't exist or has been removed.</p>
+          <p className="text-gray-400 mb-4">The property you&apos;re looking for doesn&apos;t exist or has been removed.</p>
           <Link 
             href="/properties" 
             className="inline-flex items-center px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
@@ -477,7 +477,7 @@ export default function InvestPage() {
                             name="paymentMethod"
                             value={method.value}
                             checked={form.paymentMethod === method.value}
-                            onChange={(e) => setForm(prev => ({ ...prev, paymentMethod: e.target.value as any }))}
+                            onChange={(e) => setForm(prev => ({ ...prev, paymentMethod: e.target.value as 'wallet' | 'bank_transfer' | 'card' }))}
                             className="text-emerald-500 focus:ring-emerald-500"
                           />
                           <span className="text-2xl">{method.icon}</span>
@@ -569,8 +569,8 @@ export default function InvestPage() {
                               });
                               setAssociationApproved(true);
                               alert('Token association successful.');
-                            } catch (e: any) {
-                              const msg = e?.message || 'Association failed';
+                            } catch (e: unknown) {
+                              const msg = e instanceof Error ? e.message : 'Association failed';
                               alert(msg);
                             } finally {
                               setAssociating(false);
@@ -604,7 +604,7 @@ export default function InvestPage() {
                   <MagneticEffect>
                     <button
                       onClick={handleInvest}
-                      disabled={investing || !isKycVerified || !form.termsAccepted || form.amount === 0 || (property?.token_id && !associationApproved)}
+                      disabled={investing || !isKycVerified || !Boolean(form.termsAccepted) || form.amount === 0 || (Boolean(property?.token_id) && !associationApproved)}
                       className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white py-4 px-6 rounded-xl font-semibold hover:shadow-lg hover:shadow-emerald-500/25 transition-all duration-300 hover-lift disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {investing ? (

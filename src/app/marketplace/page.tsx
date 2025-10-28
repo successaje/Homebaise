@@ -421,7 +421,7 @@ export default function MarketplacePage() {
             Property Token Marketplace
           </h1>
           <p className="text-xl text-gray-400 mb-8">
-            Trade real estate tokens instantly on Hedera's lightning-fast network
+            Trade real estate tokens instantly on Hedera&apos;s lightning-fast network
           </p>
           
           {/* Stats Banner */}
@@ -586,7 +586,7 @@ export default function MarketplacePage() {
                     {property.images && property.images[0] ? (
                       <img
                         src={property.images[0]}
-                        alt={property.name}
+                        alt={property.name || 'Property'}
                         className="w-full h-full object-cover"
                       />
                     ) : (

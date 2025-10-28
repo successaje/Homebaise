@@ -7,7 +7,7 @@ const supabase = createClient(
 );
 
 // Mock statistics data
-const MOCK_STATS: Record<string, any> = {
+const MOCK_STATS: Record<string, Record<string, unknown>> = {
   'mock-1': {
     property_id: 'mock-1',
     volume_24h: 45000,
@@ -204,7 +204,7 @@ export async function GET(request: NextRequest) {
       { statistics: stats },
       { status: 200 }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error in GET /api/marketplace/statistics:', error);
     return NextResponse.json(
       { error: 'Internal server error' },

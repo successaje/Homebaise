@@ -15,7 +15,7 @@ import {
 const PINATA_JWT = process.env.PINATA_JWT;
 const CERTIFICATE_TOKEN_ID = process.env.CERTIFICATE_TOKEN_ID; // Store this in your environment variables
 
-async function uploadToPinata(metadata: any) {
+async function uploadToPinata(metadata: Record<string, unknown>) {
   try {
     const response = await fetch('https://api.pinata.cloud/pinning/pinJSONToIPFS', {
       method: 'POST',

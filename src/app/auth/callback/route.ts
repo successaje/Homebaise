@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
   const code = requestUrl.searchParams.get('code');
 
   if (code) {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -17,10 +17,10 @@ export async function GET(request: NextRequest) {
           get(name: string) {
             return cookieStore.get(name)?.value;
           },
-          set(name: string, value: string, options: any) {
+          set(name: string, value: string, options: Record<string, unknown>) {
             cookieStore.set({ name, value, ...options });
           },
-          remove(name: string, options: any) {
+          remove(name: string, options: Record<string, unknown>) {
             cookieStore.set({ name, value: '', ...options });
           },
         },

@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
       { trades: trades || [] },
       { status: 200 }
     );
-  } catch (error: any) {
+    } catch (error: unknown) {
     console.error('Error in GET /api/marketplace/trades:', error);
     return NextResponse.json(
       { error: 'Internal server error' },

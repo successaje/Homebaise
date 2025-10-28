@@ -28,11 +28,11 @@ export async function GET(request: NextRequest) {
             console.log(`Test auth - Getting cookie ${name}:`, cookie?.value ? 'exists' : 'missing');
             return cookie?.value;
           },
-          set(name: string, value: string, options: any) {
+          set(name: string, value: string, options: Record<string, unknown>) {
             cookieStore.set(name, value, options);
           },
-          remove(name: string, options: any) {
-            cookieStore.delete(name, options);
+          remove(name: string, options: Record<string, unknown>) {
+            cookieStore.delete(name);
           },
         },
       }

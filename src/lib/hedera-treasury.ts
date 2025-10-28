@@ -364,8 +364,8 @@ export async function getPropertyTokenBalance(propertyId: string): Promise<numbe
       return 0;
     }
 
-    const hederaAccountId = (data as any)?.hedera_account_id as string | null;
-    const tokenId = (data as any)?.token_id as string | null;
+    const hederaAccountId = (data as Record<string, unknown>)?.hedera_account_id as string | null;
+    const tokenId = (data as Record<string, unknown>)?.token_id as string | null;
 
     // If we have mirror-readable identifiers, fetch live balance from Mirror Node
     if (hederaAccountId && tokenId) {
@@ -374,7 +374,7 @@ export async function getPropertyTokenBalance(propertyId: string): Promise<numbe
     }
 
     // Fallback to last known balance stored in DB
-    return (data as any)?.initial_balance_hbar || 0;
+    return (data as Record<string, unknown>)?.initial_balance_hbar as number || 0;
   } catch (error) {
     console.error('Error in getPropertyTokenBalance', { propertyId, error });
     return 0;

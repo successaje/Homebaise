@@ -47,25 +47,25 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ balance: 0, source: 'none' }, { status: 200 });
     }
 
-    const hederaAccountId = (data as any).hedera_account_id as string | null;
-    const tokenId = (data as any).token_id as string | null;
+    const hederaAccountId = (data as Record<string, unknown>).hedera_account_id as string | null;
+    const tokenId = (data as Record<string, unknown>).token_id as string | null;
 
     if (hederaAccountId && tokenId) {
       try {
         const balance = await getTokenBalanceFromMirror(hederaAccountId, tokenId);
         return NextResponse.json({ balance, source: 'mirror' }, { status: 200 });
-      } catch (mirrorError: any) {
+      } catch (mirrorError: unknown) {
         // Fall back to DB stored value
-        const balance = (data as any)?.token_balance || 0;
-        return NextResponse.json({ balance, source: 'db', mirrorError: mirrorError?.message }, { status: 200 });
+        const balance = (data as Record<string, unknown>)?.token_balance as number || 0;
+        return NextResponse.json({ balance, source: 'db', mirrorError: mirrorError instanceof Error ? mirrorError.message : 'Unknown error' }, { status: 200 });
       }
     }
 
     // Fallback when missing identifiers
-    const balance = (data as any)?.token_balance || 0;
+    const balance = (data as Record<string, unknown>)?.token_balance as number || 0;
     return NextResponse.json({ balance, source: 'db' }, { status: 200 });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'Internal error' }, { status: 500 });
+  } catch (e: unknown) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : 'Internal error' }, { status: 500 });
   }
 }
 

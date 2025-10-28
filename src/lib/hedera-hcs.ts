@@ -30,7 +30,7 @@ export interface HCSEvent {
   amount?: number;
   timestamp: string;
   transaction_id: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 // Create HCS topic for a property
@@ -110,7 +110,7 @@ export async function logInvestmentEvent(
   investorAccountId: string,
   amount: number,
   transactionId: string,
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 ): Promise<string> {
   const event: HCSEvent = {
     event: "investment",

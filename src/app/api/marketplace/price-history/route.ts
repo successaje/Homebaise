@@ -137,7 +137,7 @@ export async function GET(request: NextRequest) {
       },
       { status: 200 }
     );
-  } catch (error: any) {
+    } catch (error: unknown) {
     console.error('Error in GET /api/marketplace/price-history:', error);
     return NextResponse.json(
       { error: 'Internal server error' },

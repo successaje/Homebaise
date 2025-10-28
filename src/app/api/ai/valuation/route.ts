@@ -22,9 +22,9 @@ interface AIValuationRequest {
     description: string;
     images?: string[];
     market_data?: {
-      similar_properties: any[];
-      market_trends: any;
-      location_metrics: any;
+      similar_properties: Record<string, unknown>[];
+      market_trends: Record<string, unknown>;
+      location_metrics: Record<string, unknown>;
     };
   };
 }
@@ -133,7 +133,7 @@ Provide realistic, data-driven analysis that would be valuable for real estate i
 }
 
 // Call Ollama DeepSeek API
-async function callDeepSeekAI(prompt: string): Promise<any> {
+async function callDeepSeekAI(prompt: string): Promise<Record<string, unknown>> {
   try {
     const response = await fetch('http://localhost:11434/api/generate', {
       method: 'POST',
@@ -265,12 +265,12 @@ export async function POST(request: NextRequest) {
     try {
       analysisData = await PropertyAnalysisService.gatherPropertyAnalysisData(property_id);
       console.log('Analysis data gathered successfully:', analysisData.property.name);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error gathering analysis data:', error);
       return NextResponse.json(
         { 
           success: false, 
-          error: `Failed to gather property data: ${error.message}`,
+          error: `Failed to gather property data: ${error instanceof Error ? error.message : 'Unknown error'}`,
           property_id 
         },
         { status: 400 }
@@ -288,7 +288,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Parse AI response
-    const analysis = parseAIResponse(aiResponse.response);
+    const analysis = parseAIResponse(aiResponse.response as string);
 
     // Save analysis to database
     const { error: saveError } = await supabase
@@ -317,14 +317,14 @@ export async function POST(request: NextRequest) {
       { status: 200 }
     );
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error in AI valuation:', error);
     
     // Return error response with fallback
     return NextResponse.json(
       {
         success: false,
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
         fallback_analysis: {
           valuation: {
             estimated_value: 0,
@@ -404,7 +404,7 @@ export async function GET(request: NextRequest) {
       { status: 200 }
     );
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error fetching AI valuation:', error);
     return NextResponse.json(
       { error: 'Internal server error' },

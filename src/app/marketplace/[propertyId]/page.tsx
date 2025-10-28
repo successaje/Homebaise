@@ -21,7 +21,7 @@ import MarketStats from '@/components/marketplace/MarketStats';
 import MyOrders from '@/components/marketplace/MyOrders';
 
 // Mock data for demo purposes
-const MOCK_DATA: Record<string, any> = {
+const MOCK_DATA: Record<string, Record<string, unknown>> = {
   'mock-1': {
     property: {
       id: 'mock-1',
@@ -268,7 +268,7 @@ export default function MarketplacePage() {
   const [orderBook, setOrderBook] = useState<OrderBook | null>(null);
   const [recentTrades, setRecentTrades] = useState<MarketplaceTrade[]>([]);
   const [myOrders, setMyOrders] = useState<MarketplaceOrder[]>([]);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'buy' | 'sell'>('buy');
   const [selectedPrice, setSelectedPrice] = useState<number | null>(null);
@@ -592,7 +592,7 @@ export default function MarketplacePage() {
                 setActiveTab={setActiveTab}
                 selectedPrice={selectedPrice}
                 onSuccess={handleOrderSuccess}
-                user={user}
+                user={user || { id: '', email: '' }}
               />
             </div>
 

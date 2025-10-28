@@ -15,7 +15,7 @@ export interface DashboardActivity {
   transactionId?: string;
   hashScanUrl?: string;
   status: 'completed' | 'pending' | 'failed';
-  metadata?: any;
+  metadata?: Record<string, unknown>;
 }
 
 interface UseDashboardActivityOptions {
@@ -92,24 +92,26 @@ export const useDashboardActivity = (options?: UseDashboardActivityOptions) => {
 
       // Add investment activities
       if (investments) {
-        investments.forEach((investment: any) => {
+        investments.forEach((investment: Record<string, unknown>) => {
+          const property = investment.property as Record<string, unknown> | undefined;
+          const propertyName = property?.name || property?.title || 'Property';
           activitiesList.push({
-            id: `investment-${investment.id}`,
+            id: `investment-${String(investment.id)}`,
             type: 'investment',
-            title: `Investment in ${investment.property?.name || investment.property?.title || 'Property'}`,
-            description: `Invested $${investment.amount} for ${investment.tokens_purchased} tokens`,
-            timestamp: investment.created_at,
-            amount: investment.amount,
+            title: `Investment in ${String(propertyName)}`,
+            description: `Invested $${Number(investment.amount)} for ${Number(investment.tokens_purchased)} tokens`,
+            timestamp: String(investment.created_at || ''),
+            amount: Number(investment.amount || 0),
             currency: 'USD',
-            propertyId: investment.property_id,
-            propertyName: investment.property?.name || investment.property?.title,
-            transactionId: investment.transaction_hash,
-            hashScanUrl: investment.transaction_hash ? getHashScanTransactionUrl(investment.transaction_hash) : undefined,
+            propertyId: String(investment.property_id || ''),
+            propertyName: String(property?.name || property?.title || 'Property'),
+            transactionId: investment.transaction_hash ? String(investment.transaction_hash) : undefined,
+            hashScanUrl: investment.transaction_hash ? getHashScanTransactionUrl(String(investment.transaction_hash)) : undefined,
             status: investment.status === 'completed' ? 'completed' : investment.status === 'pending' ? 'pending' : 'failed',
             metadata: {
-              tokens_purchased: investment.tokens_purchased,
-              token_price: investment.token_price,
-              location: investment.property?.location
+              tokens_purchased: Number(investment.tokens_purchased || 0),
+              token_price: Number(investment.token_price || 0),
+              location: property?.location ? String(property.location) : undefined
             }
           });
         });
@@ -117,22 +119,22 @@ export const useDashboardActivity = (options?: UseDashboardActivityOptions) => {
 
       // Add property creation activities
       if (userProperties) {
-        userProperties.forEach((property: any) => {
+        userProperties.forEach((property: Record<string, unknown>) => {
           activitiesList.push({
-            id: `property-${property.id}`,
+            id: `property-${String(property.id)}`,
             type: 'property_created',
-            title: `Property Listed: ${property.name || property.title}`,
-            description: `Tokenized property worth $${property.total_value} in ${property.location}`,
-            timestamp: property.created_at,
-            amount: property.total_value,
+            title: `Property Listed: ${String(property.name || property.title || 'Property')}`,
+            description: `Tokenized property worth $${Number(property.total_value || 0)} in ${String(property.location || 'Unknown')}`,
+            timestamp: String(property.created_at || ''),
+            amount: Number(property.total_value || 0),
             currency: 'USD',
-            propertyId: property.id,
-            propertyName: property.name || property.title,
+            propertyId: String(property.id || ''),
+            propertyName: String(property.name || property.title || 'Property'),
             status: property.status === 'active' ? 'completed' : 'pending',
             metadata: {
-              location: property.location,
-              property_type: property.property_type,
-              yield_rate: property.yield_rate
+              location: property.location ? String(property.location) : undefined,
+              property_type: property.property_type ? String(property.property_type) : undefined,
+              yield_rate: property.yield_rate ? Number(property.yield_rate) : undefined
             }
           });
         });
@@ -140,68 +142,69 @@ export const useDashboardActivity = (options?: UseDashboardActivityOptions) => {
 
       // Add HCS property events
       if (propertyEvents) {
-        propertyEvents.forEach((event: any) => {
-          const eventData = event.event_data;
+        propertyEvents.forEach((event: Record<string, unknown>) => {
+          const eventData = event.event_data as Record<string, unknown>;
+          const property = event.property as Record<string, unknown> | undefined;
           let activity: DashboardActivity | null = null;
 
           switch (event.event_type) {
             case 'investment':
               activity = {
-                id: `hcs-investment-${event.id}`,
+                id: `hcs-investment-${String(event.id)}`,
                 type: 'investment',
-                title: `New Investment in ${event.property?.name || event.property?.title || 'Property'}`,
-                description: `$${eventData.usd_amount} invested for ${eventData.tokens_purchased} tokens`,
-                timestamp: event.timestamp,
-                amount: eventData.usd_amount,
+                title: `New Investment in ${String(property?.name || property?.title || 'Property')}`,
+                description: `$${Number(eventData.usd_amount || 0)} invested for ${Number(eventData.tokens_purchased || 0)} tokens`,
+                timestamp: String(event.timestamp || ''),
+                amount: Number(eventData.usd_amount || 0),
                 currency: 'USD',
-                propertyId: event.property_id,
-                propertyName: event.property?.name || event.property?.title,
-                transactionId: event.tx_id,
-                hashScanUrl: getHashScanTransactionUrl(event.tx_id),
+                propertyId: String(event.property_id || ''),
+                propertyName: String(property?.name || property?.title || 'Property'),
+                transactionId: event.tx_id ? String(event.tx_id) : undefined,
+                hashScanUrl: event.tx_id ? getHashScanTransactionUrl(String(event.tx_id)) : undefined,
                 status: 'completed',
                 metadata: {
-                  investor: eventData.investor,
-                  hbar_amount: eventData.amount_hbar,
-                  tokens_purchased: eventData.tokens_purchased
+                  investor: eventData.investor ? String(eventData.investor) : undefined,
+                  hbar_amount: eventData.amount_hbar ? Number(eventData.amount_hbar) : undefined,
+                  tokens_purchased: eventData.tokens_purchased ? Number(eventData.tokens_purchased) : undefined
                 }
               };
               break;
 
             case 'property_created':
               activity = {
-                id: `hcs-property-${event.id}`,
+                id: `hcs-property-${String(event.id)}`,
                 type: 'property_created',
-                title: `Property Tokenized: ${eventData.name}`,
-                description: `New property tokenized with ${eventData.token_symbol} tokens`,
-                timestamp: event.timestamp,
-                amount: eventData.total_value,
+                title: `Property Tokenized: ${String(eventData.name || 'Property')}`,
+                description: `New property tokenized with ${String(eventData.token_symbol || 'N/A')} tokens`,
+                timestamp: String(event.timestamp || ''),
+                amount: Number(eventData.total_value || 0),
                 currency: 'USD',
-                propertyId: event.property_id,
-                propertyName: eventData.name,
-                transactionId: event.tx_id,
-                hashScanUrl: getHashScanTransactionUrl(event.tx_id),
+                propertyId: String(event.property_id || ''),
+                propertyName: String(eventData.name || 'Property'),
+                transactionId: event.tx_id ? String(event.tx_id) : undefined,
+                hashScanUrl: event.tx_id ? getHashScanTransactionUrl(String(event.tx_id)) : undefined,
                 status: 'completed',
                 metadata: {
-                  token_symbol: eventData.token_symbol,
-                  location: eventData.location
+                  token_symbol: eventData.token_symbol ? String(eventData.token_symbol) : undefined,
+                  location: eventData.location ? String(eventData.location) : undefined
                 }
               };
               break;
 
             case 'token_transfer':
               activity = {
-                id: `hcs-transfer-${event.id}`,
+                id: `hcs-transfer-${String(event.id)}`,
                 type: 'token_transfer',
                 title: `Token Transfer`,
-                description: `${eventData.tokens_transferred} tokens transferred`,
-                timestamp: event.timestamp,
-                transactionId: event.tx_id,
-                hashScanUrl: getHashScanTransactionUrl(event.tx_id),
+                description: `${Number(eventData.tokens_transferred || 0)} tokens transferred`,
+                timestamp: String(event.timestamp || ''),
+                transactionId: event.tx_id ? String(event.tx_id) : undefined,
+                hashScanUrl: event.tx_id ? getHashScanTransactionUrl(String(event.tx_id)) : undefined,
                 status: 'completed',
                 metadata: {
-                  from_account: eventData.from_account,
-                  to_account: eventData.to_account,
-                  tokens_transferred: eventData.tokens_transferred
+                  from_account: eventData.from_account ? String(eventData.from_account) : undefined,
+                  to_account: eventData.to_account ? String(eventData.to_account) : undefined,
+                  tokens_transferred: eventData.tokens_transferred ? Number(eventData.tokens_transferred) : undefined
                 }
               };
               break;
@@ -219,9 +222,9 @@ export const useDashboardActivity = (options?: UseDashboardActivityOptions) => {
         .slice(0, limit);
 
       setActivities(sortedActivities);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching dashboard activities:', err);
-      setError(err.message || 'Failed to fetch activities');
+      setError(err instanceof Error ? err.message : 'Failed to fetch activities');
     } finally {
       setLoading(false);
     }

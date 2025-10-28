@@ -26,7 +26,7 @@ const supabase = createClient(
 export default function DashboardPage() {
   const [profile, setProfile] = useState<ProfileRow | null>(null)
   const [loading, setLoading] = useState(true)
-  const [session, setSession] = useState<any>(null)
+  const [session, setSession] = useState<{ user: { id: string; email?: string } } | null>(null)
   const [balance, setBalance] = useState<number | null>(null)
   const [balanceLoading, setBalanceLoading] = useState(false)
   const [balanceError, setBalanceError] = useState<string | null>(null)
@@ -34,7 +34,7 @@ export default function DashboardPage() {
   const router = useRouter()
 
   // Handle transaction completion
-  const handleTransactionComplete = async (result: any) => {
+  const handleTransactionComplete = async (result: { success: boolean; transactionId?: string }) => {
     console.log('Transaction completed:', result)
     // Refresh balance after successful transaction
     if (profile?.wallet_address) {

@@ -12,7 +12,7 @@ interface TradeFormProps {
   setActiveTab: (tab: 'buy' | 'sell') => void;
   selectedPrice: number | null;
   onSuccess: () => void;
-  user: any;
+  user: { id: string; email?: string };
 }
 
 export default function TradeForm({
@@ -169,9 +169,9 @@ export default function TradeForm({
         fetchAvailableBalance();
       }
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error creating order:', error);
-      setError(error.message || 'Failed to create order');
+      setError(error instanceof Error ? error.message : 'Failed to create order');
     } finally {
       setLoading(false);
     }

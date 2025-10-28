@@ -37,7 +37,7 @@ interface PropertyForm {
 
 export default function ListPropertyPage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
   const [isVerified, setIsVerified] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -108,7 +108,7 @@ export default function ListPropertyPage() {
     }
   };
 
-  const handleInputChange = (field: string, value: any) => {
+  const handleInputChange = (field: string, value: unknown) => {
     setForm(prev => ({ ...prev, [field]: value }));
   };
 
@@ -194,7 +194,7 @@ export default function ListPropertyPage() {
         ...form,
         images: imageCids,
         documents: documentCids,
-        listedBy: user.id,
+        listedBy: user?.id || '',
         listedAt: new Date().toISOString(),
         status: 'pending_review'
       };
@@ -220,7 +220,7 @@ export default function ListPropertyPage() {
           ipfs_metadata_cid: metadataCid[0],
           ipfs_image_cids: imageCids,
           ipfs_document_cids: documentCids,
-          listed_by: user.id,
+          listed_by: user?.id || '',
           status: 'pending_review',
           // New fields
           investment_highlights: form.investmentHighlights,
