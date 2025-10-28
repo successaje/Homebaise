@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import ScrollAnimations from '@/components/ScrollAnimations';
 import MagneticEffect from '@/components/MagneticEffect';
 
@@ -37,7 +38,8 @@ const properties = [
     price: '250,000',
     yield: '8.5%',
     funded: '75%',
-    type: 'Residential'
+    type: 'Residential',
+    image: 'https://images.unsplash.com/photo-1613977257363-707ba9348227?w=800&h=600&fit=crop&q=80'
   },
   {
     id: 2,
@@ -46,7 +48,8 @@ const properties = [
     price: '180,000',
     yield: '12%',
     funded: '45%',
-    type: 'Agricultural'
+    type: 'Agricultural',
+    image: 'https://images.unsplash.com/photo-1516253593875-bd7ba052fbc5?w=800&h=600&fit=crop&q=80'
   },
   {
     id: 3,
@@ -55,7 +58,8 @@ const properties = [
     price: '320,000',
     yield: '9.2%',
     funded: '92%',
-    type: 'Commercial'
+    type: 'Commercial',
+    image: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=800&h=600&fit=crop&q=80'
   }
 ];
 
@@ -251,22 +255,29 @@ export default function Home() {
                 <ScrollAnimations key={property.id} animationType="fade-in-up" delay={index * 200}>
                   <div className="group">
                     <div className="relative bg-white/5 backdrop-blur-xl rounded-2xl overflow-hidden border border-white/10 hover:border-emerald-500/30 transition-all duration-500 hover-lift">
-                      {/* Property Image Placeholder */}
-                      <div className="h-48 bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center relative overflow-hidden">
-                        <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 to-blue-500/10 animate-pulse-slow"></div>
-                        <span className="text-6xl animate-bounce-slow">🏠</span>
-                        <div className="absolute top-4 right-4 bg-emerald-500/20 backdrop-blur-sm px-3 py-1 rounded-full text-xs text-emerald-400 font-medium">
+                      {/* Property Image */}
+                      <div className="h-48 relative overflow-hidden">
+                        <Image 
+                          src={property.image} 
+                          alt={property.name}
+                          fill
+                          className="object-cover transition-transform duration-700 group-hover:scale-110"
+                          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+                        <div className="absolute top-4 right-4 bg-emerald-500/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs text-white font-medium shadow-lg">
                           {property.type}
+                        </div>
+                        <div className="absolute bottom-4 left-4 right-4">
+                          <h3 className="text-white font-bold text-lg drop-shadow-lg">{property.name}</h3>
+                          <p className="text-emerald-300 text-sm flex items-center mt-1">
+                            <span className="mr-1">📍</span>
+                            {property.location}
+                          </p>
                         </div>
                       </div>
                       
-                      <div className="p-8">
-                        <h3 className="text-xl font-bold text-white mb-2">{property.name}</h3>
-                        <p className="text-emerald-400 mb-6 flex items-center">
-                          <span className="mr-2">📍</span>
-                          {property.location}
-                        </p>
-                        
+                      <div className="p-8 pt-4">
                         <div className="grid grid-cols-2 gap-4 mb-6">
                           <div>
                             <p className="text-sm text-gray-400 mb-1">Total Value</p>

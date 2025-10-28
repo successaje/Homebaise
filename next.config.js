@@ -2,7 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   images: {
-    domains: ['localhost', 'your-supabase-url.supabase.co'],
+    domains: ['localhost', 'your-supabase-url.supabase.co', 'images.unsplash.com'],
   },
   webpack: (config, { isServer }) => {
     if (!isServer) {
