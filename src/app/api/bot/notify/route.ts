@@ -48,21 +48,10 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Log notification
-    const { data: notification, error: logError } = await supabase
-      .from('bot_notifications')
-      .insert({
-        user_id: userId,
-        platform,
-        chat_id: session.chat_id,
-        message_type: messageType,
-        title,
-        message,
-        metadata: metadata || {},
-        status: 'pending'
-      })
-      .select()
-      .single();
+    // TODO: Create bot_notifications table in database
+    // For now, skip notification logging
+    const notification: { id: string } | null = null;
+    const logError = null;
 
     if (logError) {
       return NextResponse.json(
@@ -75,15 +64,15 @@ export async function POST(request: NextRequest) {
     // For Telegram, you'd use the Telegram Bot API
     // For WhatsApp, you'd use the WhatsApp Business API
 
-    // Update notification status to sent
-    await supabase
-      .from('bot_notifications')
-      .update({ status: 'sent' })
-      .eq('id', notification.id);
+    // TODO: Update notification status when bot_notifications table is created
+    // await supabase
+    //   .from('bot_notifications')
+    //   .update({ status: 'sent' })
+    //   .eq('id', notification.id);
 
     return NextResponse.json({
       success: true,
-      notificationId: notification.id
+      notificationId: 'mock-id'
     });
 
   } catch (error) {

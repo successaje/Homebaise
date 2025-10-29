@@ -373,7 +373,7 @@ export default function Home() {
                   Recent Activity
                 </h2>
                 <p className="text-lg text-gray-400">
-                  See what's happening on Homebaise
+                  See what&apos;s happening on Homebaise
                 </p>
               </div>
             </ScrollAnimations>

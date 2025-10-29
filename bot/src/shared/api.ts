@@ -70,6 +70,8 @@ export interface Property {
   fundedPercent: number;
   yieldRate: number;
   availableFunding: number;
+  property_type: string;
+  description: string;
 }
 
 // API functions
@@ -135,7 +137,7 @@ export async function getProperties(token: string): Promise<Property[] | null> {
         fundedPercent: 75,
         yieldRate: 8.5,
         availableFunding: 62500,
-        propertyType: 'Residential',
+        property_type: 'Residential',
         description: 'Premium beachfront property with stunning ocean views'
       },
       {
@@ -146,7 +148,7 @@ export async function getProperties(token: string): Promise<Property[] | null> {
         fundedPercent: 45,
         yieldRate: 12,
         availableFunding: 99000,
-        propertyType: 'Agricultural',
+        property_type: 'Agricultural',
         description: 'High-yield coffee plantation with modern processing facilities'
       },
       {
@@ -157,7 +159,7 @@ export async function getProperties(token: string): Promise<Property[] | null> {
         fundedPercent: 92,
         yieldRate: 9.2,
         availableFunding: 25600,
-        propertyType: 'Commercial',
+        property_type: 'Commercial',
         description: 'Mixed-use development in prime Lagos location'
       }
     ];

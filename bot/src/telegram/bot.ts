@@ -15,7 +15,7 @@ import { handleBrowse } from './handlers/browse';
 import { handleInvest } from './handlers/invest';
 
 // Extend context to include user session
-interface BotContext extends Context {
+export interface BotContext extends Context {
   session?: {
     userId?: string;
     phoneNumber?: string;
@@ -86,7 +86,7 @@ bot.command('help', async (ctx) => {
 
 // Handle contact/phone number
 bot.on('contact', async (ctx: BotContext) => {
-  if (!ctx.message.contact) return;
+  if (!ctx.message || !('contact' in ctx.message)) return;
   
   const chatId = String(ctx.chat?.id);
   const phoneNumber = ctx.message.contact.phone_number;
@@ -137,6 +137,8 @@ bot.on('contact', async (ctx: BotContext) => {
 
 // Handle phone number as text (fallback for manual entry)
 bot.on('text', async (ctx: BotContext) => {
+  if (!ctx.message || !('text' in ctx.message)) return;
+  
   const text = ctx.message.text;
   const chatId = String(ctx.chat?.id);
   
@@ -188,7 +190,7 @@ bot.on('text', async (ctx: BotContext) => {
   // Handle OTP verification
   if (ctx.session?.awaitingOTP) {
     const text = ctx.message.text;
-    const chatId = String(ctx.chat.id);
+    const chatId = String(ctx.chat?.id);
     
     console.log(`🔐 OTP verification attempt: "${text}" for chat ${chatId}`);
     
@@ -253,8 +255,8 @@ bot.use((ctx, next) => {
     type: ctx.updateType,
     chatId: ctx.chat?.id,
     userId: ctx.from?.id,
-    text: ctx.message?.text || 'No text',
-    contact: ctx.message?.contact ? 'Contact shared' : 'No contact'
+    text: ctx.message && 'text' in ctx.message ? ctx.message.text || 'No text' : 'No text',
+    contact: ctx.message && 'contact' in ctx.message ? 'Contact shared' : 'No contact'
   });
   return next();
 });

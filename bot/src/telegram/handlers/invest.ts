@@ -9,6 +9,11 @@ export async function handleInvest(ctx: BotContext) {
     return;
   }
   
+  if (!ctx.message || !('text' in ctx.message)) {
+    await ctx.reply('❌ Invalid message type');
+    return;
+  }
+  
   const command = ctx.message.text?.split(' ');
   
   if (!command || command.length < 3) {
