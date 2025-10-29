@@ -16,7 +16,11 @@ export async function handleBrowse(ctx: BotContext) {
   if (!properties || properties.length === 0) {
     await ctx.reply(
       `🏠 No properties available at the moment.\n\n` +
-      `Check back later for new investment opportunities!`
+      `This might be because:\n` +
+      `• No properties are currently listed\n` +
+      `• The service is temporarily unavailable\n` +
+      `• There's a connection issue\n\n` +
+      `Please try again later or visit the main Homebaise app.`
     );
     return;
   }

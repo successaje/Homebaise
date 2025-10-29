@@ -1,5 +1,9 @@
 import { Telegraf, Context } from 'telegraf';
 import { config } from '../shared/config';
+import * as dns from 'dns';
+
+// Set DNS to prefer IPv4 for better connectivity
+dns.setDefaultResultOrder('ipv4first');
 import { getBotSession, createBotSession } from '../shared/database';
 import { getUserByPhone, logNotification } from '../shared/database';
 import { createOTP, verifyOTP, createSessionToken } from '../shared/auth';
@@ -20,8 +24,13 @@ interface BotContext extends Context {
   };
 }
 
-// Initialize bot
-const bot = new Telegraf<BotContext>(config.telegram.token);
+// Initialize bot with custom options
+const bot = new Telegraf<BotContext>(config.telegram.token, {
+  telegram: {
+    apiRoot: 'https://api.telegram.org',
+    webhookReply: false
+  }
+});
 
 // Session middleware
 bot.use(async (ctx: BotContext, next) => {
@@ -82,6 +91,8 @@ bot.on('contact', async (ctx: BotContext) => {
   const chatId = String(ctx.chat?.id);
   const phoneNumber = ctx.message.contact.phone_number;
   
+  console.log(`📱 Received contact from Telegram: ${phoneNumber}`);
+  
   // Find user by phone number
   const user = await getUserByPhone(phoneNumber);
   
@@ -89,9 +100,22 @@ bot.on('contact', async (ctx: BotContext) => {
     await ctx.reply(
       `❌ Phone number not found in our system.\n\n` +
       `Please ensure you've registered with this phone number on Homebaise.\n\n` +
-      `You can update your phone number in your profile settings.`
+      `You can update your phone number in your profile settings.\n\n` +
+      `_Debug: Looking for phone "${phoneNumber}"_`,
+      { parse_mode: 'Markdown' }
     );
     return;
+  }
+  
+  // Store phone number in session for OTP verification
+  try {
+    await createBotSession(
+      user.id,
+      'telegram',
+      chatId
+    );
+  } catch (error) {
+    console.log('⚠️ Bot session already exists, continuing...');
   }
   
   // Generate and send OTP
@@ -101,6 +125,7 @@ bot.on('contact', async (ctx: BotContext) => {
   // For now, we'll send it in the chat (NOT recommended for production)
   await ctx.reply(
     `✅ Account found!\n\n` +
+    `Welcome ${user.full_name || user.email || 'User'}!\n\n` +
     `Your OTP is: *${otp}*\n\n` +
     `⚠️ This is for testing only. In production, OTP will be sent via SMS.\n\n` +
     `Please enter this code to verify:`,
@@ -110,14 +135,67 @@ bot.on('contact', async (ctx: BotContext) => {
   ctx.session = { awaitingOTP: true };
 });
 
-// Handle OTP verification
+// Handle phone number as text (fallback for manual entry)
 bot.on('text', async (ctx: BotContext) => {
+  const text = ctx.message.text;
+  const chatId = String(ctx.chat?.id);
+  
+  // Check if it's a phone number (starts with + and contains digits)
+  if (text.match(/^\+\d{10,15}$/) && !ctx.session?.awaitingOTP) {
+    console.log(`📱 Received phone number as text: ${text}`);
+    
+    // Find user by phone number
+    const user = await getUserByPhone(text);
+    
+    if (!user) {
+      await ctx.reply(
+        `❌ Phone number not found in our system.\n\n` +
+        `Please ensure you've registered with this phone number on Homebaise.\n\n` +
+        `You can update your phone number in your profile settings.\n\n` +
+        `_Debug: Looking for phone "${text}"_`,
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
+    
+    // Store phone number in session for OTP verification
+    try {
+      await createBotSession(
+        user.id,
+        'telegram',
+        chatId
+      );
+    } catch (error) {
+      console.log('⚠️ Bot session already exists, continuing...');
+    }
+    
+    // Generate and send OTP
+    const otp = await createOTP(text, 'telegram', chatId);
+    
+    await ctx.reply(
+      `✅ Account found!\n\n` +
+      `Welcome ${user.full_name || user.email || 'User'}!\n\n` +
+      `Your OTP is: *${otp}*\n\n` +
+      `⚠️ This is for testing only. In production, OTP will be sent via SMS.\n\n` +
+      `Please enter this code to verify:`,
+      { parse_mode: 'Markdown' }
+    );
+    
+    ctx.session = { awaitingOTP: true };
+    return;
+  }
+  
+  // Handle OTP verification
   if (ctx.session?.awaitingOTP) {
     const text = ctx.message.text;
     const chatId = String(ctx.chat.id);
     
+    console.log(`🔐 OTP verification attempt: "${text}" for chat ${chatId}`);
+    
     // Verify OTP
     const result = await verifyOTP('telegram', chatId, text);
+    
+    console.log(`🔐 OTP verification result:`, result);
     
     if (result.success && result.userId) {
       // Create bot session
@@ -169,11 +247,26 @@ bot.catch((err, ctx) => {
   ctx.reply('❌ An error occurred. Please try again later.');
 });
 
+// Add debug logging for all messages (before launch)
+bot.use((ctx, next) => {
+  console.log('📨 Received message:', {
+    type: ctx.updateType,
+    chatId: ctx.chat?.id,
+    userId: ctx.from?.id,
+    text: ctx.message?.text || 'No text',
+    contact: ctx.message?.contact ? 'Contact shared' : 'No contact'
+  });
+  return next();
+});
+
 // Start bot (only if this file is run directly or if token is configured)
 export function startTelegramBot() {
   if (config.telegram.token) {
+    console.log('🤖 Starting Telegram bot with token:', config.telegram.token.substring(0, 10) + '...');
+    
     bot.launch().then(() => {
       console.log('✅ Telegram bot started successfully');
+      console.log('📱 Bot is ready to receive messages!');
     }).catch((error) => {
       console.error('❌ Failed to start Telegram bot:', error);
     });

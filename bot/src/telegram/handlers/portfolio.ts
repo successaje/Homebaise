@@ -19,7 +19,11 @@ export async function handlePortfolio(ctx: BotContext) {
   if (!portfolio) {
     await ctx.reply(
       `❌ Unable to load portfolio data.\n\n` +
-      `Please check your connection or try again later.`
+      `This might be because:\n` +
+      `• Your account is not fully set up in the main app\n` +
+      `• You haven't made any investments yet\n` +
+      `• The service is temporarily unavailable\n\n` +
+      `Please visit the main Homebaise app to complete your setup or make your first investment.`
     );
     return;
   }

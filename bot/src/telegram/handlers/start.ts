@@ -27,7 +27,10 @@ export async function handleStart(ctx: BotContext) {
     `👋 Welcome to Homebaise, ${firstName}!\n\n` +
     `To get started, I need to verify your account.\n\n` +
     `Please send me your phone number (with country code)\n` +
-    `Example: +2348012345678`,
+    `Example: +2348012345678\n\n` +
+    `You can either:\n` +
+    `• Use the button below to share your contact\n` +
+    `• Or type your phone number directly`,
     {
       parse_mode: 'Markdown',
       reply_markup: {

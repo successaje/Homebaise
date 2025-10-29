@@ -1,6 +1,10 @@
 import { supabase, getUserByPhone } from './database';
 import { config } from './config';
 import crypto from 'crypto';
+import * as dns from 'dns';
+
+// Set DNS to prefer IPv4 for better connectivity
+dns.setDefaultResultOrder('ipv4first');
 
 // Generate random OTP
 export function generateOTP(): string {
@@ -45,6 +49,8 @@ export async function verifyOTP(
   chatId: string,
   otpCode: string
 ): Promise<{ success: boolean; userId?: string; phoneNumber?: string }> {
+  console.log(`🔍 Verifying OTP: platform=${platform}, chatId=${chatId}, otpCode=${otpCode}`);
+  
   const { data, error } = await supabase
     .from('bot_otp_codes')
     .select('*')
@@ -54,7 +60,10 @@ export async function verifyOTP(
     .eq('verified', false)
     .single();
 
+  console.log(`🔍 OTP query result:`, { data, error });
+
   if (error || !data) {
+    console.log(`❌ OTP not found or error:`, error);
     return { success: false };
   }
 

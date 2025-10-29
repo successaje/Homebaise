@@ -1,5 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 import { config } from './config';
+import * as dns from 'dns';
+
+// Set DNS to prefer IPv4 for better connectivity
+dns.setDefaultResultOrder('ipv4first');
 
 export const supabase = createClient(
   config.api.supabaseUrl,
@@ -54,13 +58,17 @@ export async function createBotSession(
   platform: string,
   chatId: string
 ): Promise<BotSession | null> {
+  // Use upsert to handle duplicates
   const { data, error } = await supabase
     .from('bot_sessions')
-    .insert({
+    .upsert({
       user_id: userId,
       platform,
       chat_id: chatId,
-      is_active: true
+      is_active: true,
+      updated_at: new Date().toISOString()
+    }, {
+      onConflict: 'platform,chat_id'
     })
     .select()
     .single();
@@ -73,15 +81,48 @@ export async function createBotSession(
   return data as BotSession;
 }
 
-export async function getUserByPhone(phoneNumber: string): Promise<{ id: string; email?: string; full_name?: string } | null> {
+// Normalize phone number to standard format
+function normalizePhoneNumber(phone: string): string {
+  // Remove all non-digit characters except +
+  let normalized = phone.replace(/[^\d+]/g, '');
+  
+  // If it starts with 0, replace with +234 (Nigerian format)
+  if (normalized.startsWith('0')) {
+    normalized = '+234' + normalized.substring(1);
+  }
+  
+  // If it starts with 234 but no +, add +
+  if (normalized.startsWith('234') && !normalized.startsWith('+234')) {
+    normalized = '+' + normalized;
+  }
+  
+  return normalized;
+}
+
+export async function getUserByPhone(phoneNumber: string): Promise<{ id: string; email?: string; full_name?: string; phone_number?: string } | null> {
+  // Normalize the phone number first
+  const normalizedPhone = normalizePhoneNumber(phoneNumber);
+  
+  console.log(`🔍 Looking up phone: "${phoneNumber}" → normalized: "${normalizedPhone}"`);
+  
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, email, full_name')
-    .eq('phone_number', phoneNumber)
+    .select('id, email, full_name, phone_number')
+    .eq('phone_number', normalizedPhone)
     .single();
 
-  if (error || !data) return null;
-  return data as { id: string; email?: string; full_name?: string };
+  if (error) {
+    console.log(`❌ Phone lookup failed:`, error);
+    return null;
+  }
+  
+  if (!data) {
+    console.log(`❌ No user found with phone: ${normalizedPhone}`);
+    return null;
+  }
+  
+  console.log(`✅ User found:`, { id: data.id, email: data.email, name: data.full_name });
+  return data as { id: string; email?: string; full_name?: string; phone_number?: string };
 }
 
 export async function getNotificationPreferences(userId: string): Promise<NotificationPreferences | null> {

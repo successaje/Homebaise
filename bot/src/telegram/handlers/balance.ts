@@ -16,7 +16,11 @@ export async function handleBalance(ctx: BotContext) {
   if (!balance) {
     await ctx.reply(
       `❌ Unable to load balance.\n\n` +
-      `Please check your connection or try again later.`
+      `This might be because:\n` +
+      `• Your account is not fully set up in the main app\n` +
+      `• You need to link a Hedera wallet first\n` +
+      `• The service is temporarily unavailable\n\n` +
+      `Please visit the main Homebaise app to complete your setup.`
     );
     return;
   }

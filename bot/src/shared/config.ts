@@ -15,7 +15,7 @@ export const config = {
   
   // Homebaise API
   api: {
-    url: process.env.HOMEBASE_API_URL || 'http://localhost:3000',
+    url: process.env.HOMEBASE_API_URL || 'https://homebaise.vercel.app',
     supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || '',
     supabaseKey: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
   },
