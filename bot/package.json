@@ -1,0 +1,35 @@
+{
+  "name": "homebaise-bot",
+  "version": "1.0.0",
+  "description": "Telegram and WhatsApp bot for Homebaise platform",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "telegram": "tsx src/telegram/bot.ts",
+    "whatsapp": "tsx src/whatsapp/bot.ts",
+    "test": "tsx src/server.ts"
+  },
+  "keywords": [
+    "telegram",
+    "whatsapp",
+    "bot",
+    "hedera",
+    "real-estate"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.56.0",
+    "dotenv": "^16.3.1",
+    "telegraf": "^4.15.0",
+    "axios": "^1.6.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  }
+}
+

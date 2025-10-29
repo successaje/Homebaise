@@ -506,6 +506,7 @@ export class InvestmentFlow {
 
   /**
    * Update property financial data after successful investment
+   * Uses atomic database function to prevent race conditions
    */
   private async updatePropertyFinancials(
     propertyId: string,
@@ -513,43 +514,56 @@ export class InvestmentFlow {
     tokensPurchased: number
   ): Promise<void> {
     try {
-      // Get current property data
-      const { data: property, error: propertyError } = await supabase
-        .from('properties')
-        .select('total_value, funded_amount_usd, token_price')
-        .eq('id', propertyId)
-        .single();
+      // Use atomic database function to update funding progress
+      // This prevents race conditions when multiple investments complete simultaneously
+      const { error: functionError } = await supabase.rpc('update_property_funding_atomic', {
+        p_property_id: propertyId,
+        p_investment_amount: investmentAmount
+      });
 
-      if (propertyError || !property) {
-        console.error('Failed to fetch property data for financial update:', propertyError);
-        return;
+      if (functionError) {
+        console.error('Failed to update property funding atomically:', functionError);
+        
+        // Fallback to manual update if function doesn't exist (backwards compatibility)
+        const { data: property, error: propertyError } = await supabase
+          .from('properties')
+          .select('total_value, funded_amount_usd, token_price')
+          .eq('id', propertyId)
+          .single();
+
+        if (propertyError || !property) {
+          console.error('Failed to fetch property data for financial update:', propertyError);
+          return;
+        }
+
+        const currentFundedAmount = property.funded_amount_usd || 0;
+        const newFundedAmount = currentFundedAmount + investmentAmount;
+        const totalValue = property.total_value || 1;
+        const fundedPercent = (newFundedAmount / totalValue) * 100;
+
+        const { error: updateError } = await supabase
+          .from('properties')
+          .update({
+            funded_amount_usd: newFundedAmount,
+            funded_percent: Math.min(fundedPercent, 100),
+            token_price: 1.0,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', propertyId);
+
+        if (updateError) {
+          console.error('Failed to update property financials (fallback):', updateError);
+          return;
+        }
       }
 
-      // Calculate new financial metrics
-      const currentFundedAmount = property.funded_amount_usd || 0;
-      const newFundedAmount = currentFundedAmount + investmentAmount;
-      const totalValue = property.total_value || 1; // Avoid division by zero
-      const fundedPercent = (newFundedAmount / totalValue) * 100;
-      
-      // Set token price to $1 (1:1 ratio)
-      const tokenPrice = 1.0;
-
-      // Update property with new financial data
-      const { error: updateError } = await supabase
+      // Always update token_price to ensure consistency (1:1 ratio)
+      await supabase
         .from('properties')
-        .update({
-          funded_amount_usd: newFundedAmount,
-          funded_percent: Math.min(fundedPercent, 100), // Cap at 100%
-          token_price: tokenPrice,
-          updated_at: new Date().toISOString()
-        })
+        .update({ token_price: 1.0 })
         .eq('id', propertyId);
 
-      if (updateError) {
-        console.error('Failed to update property financials:', updateError);
-      } else {
-        console.log('✅ Property financials updated successfully');
-      }
+      console.log('✅ Property financials updated successfully');
     } catch (error) {
       console.error('Error updating property financials:', error);
     }
