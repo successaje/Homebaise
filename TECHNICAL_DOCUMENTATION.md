@@ -306,6 +306,10 @@ npm run dev
 
 ## 📊 Architecture Diagram
 
+![Homebaise Architecture Flowchart](public/images/flowchart.png)
+
+### Detailed Architecture Overview
+
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        HOMEBAISE PLATFORM                        │
@@ -445,7 +449,8 @@ Details will be added after mainnet deployment.
 ### Certificates & Pitch
 
 - **Certificate**: [View Certificate](cert/886eb452-88f0-489e-9772-b9605d6ba2ae.pdf)
-- **Pitch Deck**: [Watch on YouTube](https://youtu.be/YH5-hDscbrM)
+- **Pitch Video**: [Watch on YouTube](https://youtu.be/YH5-hDscbrM)
+- **Presentation Slides**: [Download PDF](homebaise.pdf)
 
 ### External Links
 
@@ -462,6 +467,79 @@ Details will be added after mainnet deployment.
 
 - Issues: [GitHub Issues](https://github.com/successaje/Homebaise/issues)
 - Discussions: [GitHub Discussions](https://github.com/successaje/Homebaise/discussions)
+
+---
+
+## 🤖 AI & Machine Learning Stack
+
+### Current Implementation: Ollama + DeepSeek
+
+Homebaise uses **Ollama** (local AI inference server) with the **DeepSeek Coder** model for property valuation and risk analysis.
+
+**Why Ollama + DeepSeek?**
+- **Cost-effective**: No API costs for inference
+- **Privacy-first**: Property data remains on-premises
+- **High performance**: Fast inference (3-5 seconds)
+- **DeepSeek Coder**: Specialized in structured JSON responses for property analysis
+
+**Configuration:**
+```env
+OLLAMA_URL=http://localhost:11434
+```
+
+**Usage:**
+- Property valuation with confidence scores
+- Multi-factor risk assessment
+- Market analysis and growth potential
+- Investment recommendations
+- Real-time analysis via `/api/ai/valuation`
+
+### Future Enhancements
+
+#### ElizaOS Integration (Planned)
+
+**ElizaOS** integration will enable intelligent agent-based workflows:
+
+- **Natural Language Processing**: Users can interact in plain English ("Invest $500 in Lagos property")
+- **Multi-Agent Workflows**: Specialized AI agents for:
+  - Property valuation
+  - Investment analysis
+  - Portfolio management
+  - Risk assessment
+- **Intelligent Transaction Execution**: AI agents that understand intent and execute Hedera transactions
+- **Conversational Bots**: Enhanced Telegram/WhatsApp bot with AI understanding
+
+#### Native Hedera Plugin for Homebaise (Planned)
+
+A **native Hedera plugin** will simplify transaction execution:
+
+**Features:**
+- **One-Line Commands**: Complex Hedera operations simplified
+- **Property Token Operations**: Create, transfer, and manage tokens easily
+- **Treasury Management**: Automated treasury account operations
+- **HCS Integration**: Seamless event logging and audit trails
+- **Plugin Marketplace**: Shareable plugins for common workflows
+
+**Example Usage:**
+```typescript
+// Future plugin API
+const homebaise = new HomebaiseHederaPlugin();
+
+// Simple investment
+await homebaise.invest(propertyId, amount, userId);
+// Automatically handles: HBAR transfer → Token association → Token transfer → HCS logging
+
+// Property tokenization
+await homebaise.tokenizeProperty(propertyId, initialSupply);
+// Creates treasury → Mints tokens → Sets up HCS topic
+```
+
+**Benefits:**
+- **Developer Experience**: Reduced boilerplate code
+- **Error Handling**: Built-in transaction retries and error recovery
+- **Cost Optimization**: Automatic fee estimation and optimization
+- **Composability**: Plugins work together seamlessly
+- **Community**: Shareable Hedera workflows for RWA projects
 
 ---
 

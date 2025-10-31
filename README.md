@@ -104,10 +104,15 @@ Supports the technical implementation, feature integration, and on-chain optimiz
 ---
 
 ## 🎯 Hackathon Pitch One-Liner
-> “Homebaise is where Africa’s assets meet Web3 — turning land, farms, and homes into trusted, investable opportunities on Hedera.”
+> "Homebaise is where Africa's assets meet Web3 — turning land, farms, and homes into trusted, investable opportunities on Hedera."
 
 ---
 
+## 📊 System Architecture
+
+![Homebaise Architecture Flowchart](public/images/flowchart.png)
+
+---
 ## 🚀 Quick Start
 
 ### Installation
@@ -134,7 +139,8 @@ Open [http://localhost:3000](http://localhost:3000) to see the app.
 
 - 📖 **[Technical Documentation](TECHNICAL_DOCUMENTATION.md)** - Complete architecture and setup guide
 - 📄 **[Certificate](cert/886eb452-88f0-489e-9772-b9605d6ba2ae.pdf)** - Project certification
-- 🎬 **[Pitch Deck](https://youtu.be/YH5-hDscbrM)** - Watch our pitch video
+- 🎬 **[Pitch Video](https://youtu.be/YH5-hDscbrM)** - Watch our pitch video
+- 📊 **[Presentation Slides](homebaise.pdf)** - Download Pitch deck
 - 🤖 **[Try the Bot](https://t.me/homebaise_bot)** - Invest via Telegram
 
 ---

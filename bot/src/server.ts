@@ -2,6 +2,8 @@
 // Starts both Telegram and WhatsApp bots
 
 import * as dns from 'dns';
+import * as http from 'http';
+import { config } from './shared/config';
 
 // Set DNS to prefer IPv4 for better connectivity
 dns.setDefaultResultOrder('ipv4first');
@@ -19,14 +21,35 @@ startTelegramBot();
 
 console.log('✅ Bot services initialized');
 
-// Keep the process alive
-process.on('SIGINT', () => {
-  console.log('\n👋 Shutting down bot server...');
-  process.exit(0);
+// Create HTTP server for Render health checks and to keep process alive
+const server = http.createServer((req, res) => {
+  if (req.url === '/health' || req.url === '/') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ 
+      status: 'ok', 
+      service: 'homebaise-bot',
+      uptime: process.uptime()
+    }));
+  } else {
+    res.writeHead(404);
+    res.end('Not Found');
+  }
 });
 
-process.on('SIGTERM', () => {
-  console.log('\n👋 Shutting down bot server...');
-  process.exit(0);
+server.listen(config.server.port, () => {
+  console.log(`📡 Health check server listening on port ${config.server.port}`);
+  console.log(`🔍 Health check: http://localhost:${config.server.port}/health`);
 });
+
+// Graceful shutdown
+const shutdown = () => {
+  console.log('\n👋 Shutting down bot server...');
+  server.close(() => {
+    console.log('✅ HTTP server closed');
+    process.exit(0);
+  });
+};
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
 

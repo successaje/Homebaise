@@ -174,7 +174,8 @@ Frontend (Next.js) → API (Next.js Routes) → Database (Supabase) → Hedera N
 - **GitHub**: [your-repo-url]
 - **Documentation**: [TECHNICAL_DOCUMENTATION.md](TECHNICAL_DOCUMENTATION.md)
 - **Certificate**: [cert/886eb452-88f0-489e-9772-b9605d6ba2ae.pdf](cert/886eb452-88f0-489e-9772-b9605d6ba2ae.pdf)
-- **Pitch Deck**: [Watch on YouTube](https://youtu.be/YH5-hDscbrM)
+- **Pitch Video**: [Watch on YouTube](https://youtu.be/YH5-hDscbrM)
+- **Presentation Slides**: [Download PDF](homebaise.pdf)
 - **Live Demo**: [Try @homebaise_bot on Telegram](https://t.me/homebaise_bot)
 
 ---

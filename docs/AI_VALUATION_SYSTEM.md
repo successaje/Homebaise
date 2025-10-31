@@ -208,6 +208,15 @@ ALTER TABLE properties ADD COLUMN ai_recommendation TEXT;
 
 ## 🔧 **Setup & Configuration**
 
+### **Current AI Stack: Ollama + DeepSeek**
+
+Homebaise currently uses **Ollama** as the local AI inference server with the **DeepSeek Coder** model for property valuation and analysis. This setup provides:
+
+- **Cost-effective AI inference** - Run locally without API costs
+- **Privacy-focused** - Property data stays on-premises
+- **High performance** - Fast inference for real-time analysis
+- **DeepSeek Coder** - Specialized in code and structured analysis, perfect for JSON responses
+
 ### **1. Ollama Setup:**
 ```bash
 # Install Ollama
@@ -223,6 +232,7 @@ ollama serve
 ### **2. Environment Variables:**
 ```env
 # Ollama Configuration
+OLLAMA_URL=http://localhost:11434
 OLLAMA_HOST=http://localhost:11434
 
 # Database (already configured)
@@ -428,6 +438,38 @@ and recommends Strong Buy based on market fundamentals."
 - ✅ `src/components/ai/AIInsightsCard.tsx` - UI component
 - ✅ `src/components/ai/AIValuationDashboard.tsx` - Full dashboard
 - ✅ `supabase/migrations/20241015000000_create_ai_valuations.sql` - Database schema
+
+---
+
+## 🚀 **Future Enhancements**
+
+### **ElizaOS Integration (Planned)**
+
+Homebaise plans to integrate with **ElizaOS**, an AI agent framework that will enable:
+
+- **Intelligent Transaction Execution** - AI agents that understand user intent and execute Hedera transactions
+- **Natural Language Property Management** - "Invest $500 in Lagos property" automatically handled
+- **Multi-Agent Workflows** - Specialized agents for valuation, investment, and portfolio management
+- **Conversational Interface** - Seamless interaction through Telegram/WhatsApp bots
+- **Plugin Ecosystem** - Native Hedera plugins for Homebaise operations
+
+### **Native Hedera Plugin for Homebaise (Planned)**
+
+We're developing a **native Hedera plugin** that will:
+
+- **Simplify Transaction Execution** - One-line commands for complex Hedera operations
+- **Property Token Operations** - Create, transfer, and manage property tokens easily
+- **Treasury Management** - Automated treasury account operations
+- **HCS Integration** - Seamless event logging and audit trails
+- **Plugin Marketplace** - Shareable plugins for common Homebaise workflows
+
+**Integration Example:**
+```typescript
+// Future ElizaOS plugin usage
+const homebaisePlugin = new HomebaiseHederaPlugin();
+await homebaisePlugin.invest(propertyId, amount, userId);
+// Automatically handles: HBAR transfer → Token association → Token transfer → HCS logging
+```
 
 ---
 

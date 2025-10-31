@@ -139,6 +139,33 @@ npm run build
 npm start
 ```
 
+### Deploying to Render
+
+The bot includes a `render.yaml` configuration file for easy deployment to Render.
+
+**Steps to deploy:**
+
+1. **Push your bot code to GitHub**
+2. **Connect to Render:**
+   - Go to [render.com](https://render.com)
+   - Click "New" → "Blueprint"
+   - Connect your GitHub repository
+   - Select the `bot` directory
+3. **Configure Environment Variables:**
+   - `TELEGRAM_BOT_TOKEN` - Your bot token from @BotFather
+   - `HOMEBASE_API_URL` - Your deployed Homebaise API URL
+   - `BOT_SERVER_TOKEN` - Shared token for bot authentication
+   - `NEXT_PUBLIC_SUPABASE_URL` - Your Supabase project URL
+   - `SUPABASE_SERVICE_ROLE_KEY` - Your Supabase service role key
+4. **Deploy:**
+   - Render will automatically detect `render.yaml`
+   - Build and start your bot service
+5. **Monitor:**
+   - Check logs in Render dashboard
+   - Test bot in Telegram
+
+**Note:** The bot uses long polling by default. For production, consider configuring webhooks for better performance.
+
 ### Testing
 
 Manual testing with Telegram:
