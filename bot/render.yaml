@@ -2,6 +2,7 @@ services:
   - type: web
     name: homebaise-bot
     env: node
+    rootDir: bot
     buildCommand: npm install && npm run build
     startCommand: npm start
     envVars:
