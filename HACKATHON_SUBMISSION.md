@@ -63,7 +63,7 @@
 ## 📊 Deployed Hedera IDs (Testnet)
 
 ### Operator Account
-- Account ID: `[YOUR_ACCOUNT_ID]` - Creates treasury accounts and tokens
+- Account ID: `0.0.6615760` - Creates treasury accounts and tokens
 
 ### Treasury Accounts
 - Format: `0.0.XXXXX` per property
