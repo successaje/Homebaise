@@ -141,6 +141,42 @@ bot.on('text', async (ctx: BotContext) => {
   
   const text = ctx.message.text;
   const chatId = String(ctx.chat?.id);
+  const isAuthed = !!ctx.session?.authenticated && !!ctx.session?.userId;
+
+  // NL invest: "invest $15 in Kigali Business Square"
+  if (isAuthed) {
+    const investMatch = text.match(/invest\s+\$?([\d_,\.]+)\s*(?:usd|dollars)?\s*(?:in|into|on)\s+(.+)/i);
+    if (investMatch) {
+      const rawAmount = investMatch[1].replace(/[, _]/g, '');
+      const amount = Number(rawAmount);
+      const titleQuery = investMatch[2].trim();
+
+      if (!Number.isFinite(amount) || amount <= 0) {
+        await ctx.reply('❌ Please provide a valid amount. Example: invest $15 in Kigali Business Square');
+        return;
+      }
+
+      await ctx.reply(`⏳ Processing investment of $${amount.toFixed(2)} in "${titleQuery}" ...`);
+
+      // Use signed server endpoint by title
+      const { createInvestmentByTitle } = await import('../shared/api');
+      const result = await createInvestmentByTitle(titleQuery, amount, ctx.session?.userId);
+      if (!result.success) {
+        await ctx.reply(`❌ Investment failed: ${result.error || 'Unknown error'}`);
+        return;
+      }
+
+      const txId = result.transactionId || '';
+      const hashscanUrl = txId ? `https://hashscan.io/testnet/transaction/${txId}` : '';
+
+      let confirmation = `✅ Investment submitted!\n\n` +
+        `Title: ${titleQuery}\n` +
+        `Amount: $${amount.toFixed(2)}`;
+      if (hashscanUrl) confirmation += `\n\n🔗 Hashscan: ${hashscanUrl}`;
+      await ctx.reply(confirmation, { parse_mode: 'Markdown' });
+      return;
+    }
+  }
   
   // Check if it's a phone number (starts with + and contains digits)
   if (text.match(/^\+\d{10,15}$/) && !ctx.session?.awaitingOTP) {

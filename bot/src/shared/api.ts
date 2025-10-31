@@ -188,3 +188,28 @@ export async function createInvestment(
   }
 }
 
+// Signed server call: invest by title (preferred for bot)
+export async function createInvestmentByTitle(
+  title: string,
+  amountUsd: number,
+  userId?: string
+): Promise<{ success: boolean; transactionId?: string; error?: string }> {
+  try {
+    const response = await apiClient.post(
+      `/api/bot/invest`,
+      { title, amountUsd, userId },
+      {
+        headers: {
+          'X-Bot-Token': config.bot.serverToken,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+    const tx = response.data?.transaction_hash as string | undefined;
+    return { success: true, transactionId: tx };
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return { success: false, error: errorMessage };
+  }
+}
+

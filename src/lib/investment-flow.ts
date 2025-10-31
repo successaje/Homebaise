@@ -1,5 +1,6 @@
 import { Client, PrivateKey, AccountId, TokenId, TransferTransaction, TokenAssociateTransaction, Hbar } from '@hashgraph/sdk';
 import { supabase } from './supabase';
+import { createClient } from '@supabase/supabase-js';
 import { Property } from '@/types/property';
 import { CreateInvestmentInput, Investment } from '@/types/investment';
 import { getAccountBalance, getHbarUsdPrice, transferHbar } from '@/lib/hedera';
@@ -35,6 +36,12 @@ export interface InvestorInfo {
  */
 export class InvestmentFlow {
   private client: Client;
+  private db = process.env.SUPABASE_SERVICE_ROLE_KEY
+    ? createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      )
+    : supabase;
 
   constructor() {
     // Initialize Hedera client
@@ -119,7 +126,7 @@ export class InvestmentFlow {
         status: 'pending'
       };
 
-      const { data: investment, error: investmentError } = await supabase
+    const { data: investment, error: investmentError } = await this.db
         .from('investments')
         .insert({
           ...investmentData,
@@ -166,7 +173,7 @@ export class InvestmentFlow {
       }
 
       // Step 9: Update investment as completed (store token transfer tx as transaction_hash)
-      const { data: updatedInvestment, error: updateError } = await supabase
+      const { data: updatedInvestment, error: updateError } = await this.db
         .from('investments')
         .update({
           status: 'completed',
@@ -202,11 +209,13 @@ export class InvestmentFlow {
         console.log('🔍 Starting HCS event logging for property:', propertyId);
         
         // Get topic_id from treasury account
-        const { data: treasuryData, error: treasuryError } = await supabase
+        const { data: treasuryData, error: treasuryError } = await this.db
           .from('property_treasury_accounts')
           .select('topic_id, token_id, status')
           .eq('property_id', propertyId)
-          .single();
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
         console.log('📋 Treasury data query result:', { treasuryData, treasuryError });
 
@@ -283,7 +292,7 @@ export class InvestmentFlow {
     treasuryInfo: TreasuryInfo;
   }> {
     // Fetch property
-    const { data: property, error: propertyError } = await supabase
+    const { data: property, error: propertyError } = await this.db
       .from('properties')
       .select('*')
       .eq('id', propertyId)
@@ -294,14 +303,16 @@ export class InvestmentFlow {
     }
 
     // Fetch treasury info
-    const { data: treasury, error: treasuryError } = await supabase
+    const { data: treasury, error: treasuryError } = await this.db
       .from('property_treasury_accounts')
       .select('hedera_account_id, hedera_private_key, token_id, token_balance, status')
       .eq('property_id', propertyId)
-      .single();
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     if (treasuryError || !treasury) {
-      throw new Error(`Treasury account not found: ${treasuryError?.message}`);
+      throw new Error(`Treasury account not found: ${treasuryError?.message || 'no active treasury row'}`);
     }
 
     if (treasury.status !== 'active') {
@@ -363,9 +374,9 @@ export class InvestmentFlow {
    * Fetch investor information
    */
   private async fetchInvestorInfo(investorId: string): Promise<InvestorInfo> {
-    const { data: profile, error } = await supabase
+    const { data: profile, error } = await this.db
       .from('profiles')
-      .select('wallet_address, hedera_private_key')
+      .select('wallet_address, hedera_private_key, hedera_public_key, hedera_evm_address')
       .eq('id', investorId)
       .single();
 
@@ -476,7 +487,7 @@ export class InvestmentFlow {
       updateData.error_message = errorMessage;
     }
 
-    const { error } = await supabase
+    const { error } = await this.db
       .from('investments')
       .update(updateData)
       .eq('id', investmentId);
@@ -490,7 +501,7 @@ export class InvestmentFlow {
    * Update treasury balance in database
    */
   private async updateTreasuryBalance(propertyId: string, newBalance: number): Promise<void> {
-    const { error } = await supabase
+    const { error } = await this.db
       .from('property_treasury_accounts')
       .update({ 
         token_balance: newBalance,
@@ -516,7 +527,7 @@ export class InvestmentFlow {
     try {
       // Use atomic database function to update funding progress
       // This prevents race conditions when multiple investments complete simultaneously
-      const { error: functionError } = await supabase.rpc('update_property_funding_atomic', {
+      const { error: functionError } = await this.db.rpc('update_property_funding_atomic', {
         p_property_id: propertyId,
         p_investment_amount: investmentAmount
       });
@@ -525,7 +536,7 @@ export class InvestmentFlow {
         console.error('Failed to update property funding atomically:', functionError);
         
         // Fallback to manual update if function doesn't exist (backwards compatibility)
-        const { data: property, error: propertyError } = await supabase
+        const { data: property, error: propertyError } = await this.db
           .from('properties')
           .select('total_value, funded_amount_usd, token_price')
           .eq('id', propertyId)
@@ -541,7 +552,7 @@ export class InvestmentFlow {
         const totalValue = property.total_value || 1;
         const fundedPercent = (newFundedAmount / totalValue) * 100;
 
-        const { error: updateError } = await supabase
+        const { error: updateError } = await this.db
           .from('properties')
           .update({
             funded_amount_usd: newFundedAmount,
@@ -558,7 +569,7 @@ export class InvestmentFlow {
       }
 
       // Always update token_price to ensure consistency (1:1 ratio)
-      await supabase
+      await this.db
         .from('properties')
         .update({ token_price: 1.0 })
         .eq('id', propertyId);

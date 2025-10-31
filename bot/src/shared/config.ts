@@ -13,6 +13,11 @@ export const config = {
     apiKey: process.env.WHATSAPP_API_KEY || '',
   },
   
+  // Bot
+  bot: {
+    serverToken: process.env.BOT_SERVER_TOKEN || '',
+  },
+  
   // Homebaise API
   api: {
     url: process.env.HOMEBASE_API_URL || 'https://homebaise.vercel.app',
