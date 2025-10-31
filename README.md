@@ -49,7 +49,7 @@ A Hedera-powered RWA platform that:
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/homebaise.git
+git clone https://github.com/successaje/Homebaise.git
 cd homebaise
 
 # Install dependencies

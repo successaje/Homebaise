@@ -211,7 +211,7 @@ Total Time: 6-10 seconds
 #### 1. Clone Repository
 
 ```bash
-git clone https://github.com/your-username/homebaise.git
+git clone https://github.com/successaje/Homebaise.git
 cd homebaise
 ```
 
@@ -458,8 +458,8 @@ Details will be added after mainnet deployment.
 
 ### Support
 
-- Issues: [GitHub Issues](https://github.com/your-username/homebaise/issues)
-- Discussions: [GitHub Discussions](https://github.com/your-username/homebaise/discussions)
+- Issues: [GitHub Issues](https://github.com/successaje/Homebaise/issues)
+- Discussions: [GitHub Discussions](https://github.com/successaje/Homebaise/discussions)
 
 ---
 
