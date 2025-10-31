@@ -1,5 +1,7 @@
 # Homebaise - Project Summary
 
+**🏆 Hackathon Track:** Onchain Finance & Real-World Assets (RWA)
+
 ## 🎯 The Vision
 
 Homebaise is the first AI-powered real estate tokenization platform built on Hedera Network, enabling fractional ownership of African property starting from just $10.

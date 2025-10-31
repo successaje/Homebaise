@@ -2,6 +2,8 @@
 
 > **Tokenizing Africa's Real Estate on Hedera Network**
 
+**🏆 Hackathon Track:** Onchain Finance & Real-World Assets (RWA)
+
 [![Built with Hedera](https://img.shields.io/badge/Built%20with-Hedera-00A0DC)](https://hedera.com)
 [![Next.js](https://img.shields.io/badge/Next.js-15-black)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)](https://www.typescriptlang.org)
