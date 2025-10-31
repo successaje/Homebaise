@@ -101,6 +101,8 @@ Drives Homebaise's public voice and community presence through content, storytel
 **Nailer** — *Developer & Contributor*  
 Supports the technical implementation, feature integration, and on-chain optimizations for the Homebaise platform.
 
+**Core technical build and Hedera integration were executed by Aje Success, with advisory and content support from other members.**
+
 ---
 
 ## 🎯 Hackathon Pitch One-Liner
