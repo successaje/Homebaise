@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { supabase as supabaseAnon } from '@/lib/supabase';
 import { executePropertyInvestment } from '@/lib/investment-flow';
+import { Property } from '@/types/property';
 
 // Use service-role for server-side bot operations to bypass RLS
 const supabaseAdmin = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -29,10 +30,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid payload', details: { title: !!title, amountUsd } }, { status: 400 });
     }
 
-    let property: any = null;
+    let property: Property | null = null;
     if (process.env.BOT_SKIP_DB === 'true') {
       // Skip DB lookup in demo/offline mode
-      property = { id: `demo-${Date.now()}`, title };
+      property = { 
+        id: `demo-${Date.now()}`, 
+        title,
+        status: 'active',
+        listed_by: '',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      } as Property;
     } else {
       try {
         // Prepare candidate titles to handle NL commands like
@@ -75,7 +83,14 @@ export async function POST(request: NextRequest) {
         }
       } catch (e) {
         // DNS/network issues? fall back to demo
-        property = { id: `demo-${Date.now()}`, title };
+        property = { 
+          id: `demo-${Date.now()}`, 
+          title,
+          status: 'active',
+          listed_by: '',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        } as Property;
       }
 
       if (!property) {
@@ -85,6 +100,9 @@ export async function POST(request: NextRequest) {
 
     // If demo mode, return mock tx; otherwise execute real flow
     if (process.env.BOT_SKIP_DB === 'true') {
+      if (!property) {
+        return NextResponse.json({ error: 'Property not found' }, { status: 404 });
+      }
       const transaction_hash = `0.0.12345@${Date.now()}`;
       return NextResponse.json({
         success: true,
@@ -101,6 +119,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate treasury for the resolved property_id (latest active row)
+    if (!property) {
+      return NextResponse.json({ error: 'Property not found' }, { status: 404 });
+    }
+
     try {
       const { data: treasury, error: treasuryError } = await supabaseAdmin
         .from('property_treasury_accounts')
@@ -133,7 +155,7 @@ export async function POST(request: NextRequest) {
         }, { status: 200 });
       }
     } catch (e) {
-      return NextResponse.json({ error: 'Failed to verify treasury account', details: { property_id: property?.id, title } }, { status: 400 });
+      return NextResponse.json({ error: 'Failed to verify treasury account', details: { property_id: property.id, title } }, { status: 400 });
     }
 
     // Execute real investment using resolved property_id

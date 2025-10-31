@@ -317,7 +317,8 @@ export async function POST(request: NextRequest) {
     const aiResponse = await callDeepSeekAI(prompt);
 
     // Parse AI response (handles empty/invalid by returning defaults)
-    const analysis = parseAIResponse((aiResponse as any).response || '');
+    const responseText = typeof aiResponse.response === 'string' ? aiResponse.response : '';
+    const analysis = parseAIResponse(responseText);
 
     // Save analysis to database
     const { error: saveError } = await supabase
