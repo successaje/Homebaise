@@ -10,6 +10,12 @@ interface HederaAccountResult {
 
 const MIRROR_NODE_URL = 'https://testnet.mirrornode.hedera.com/api/v1';
 
+export function hasHederaOperatorCredentials(): boolean {
+  const operatorId = process.env.MY_ACCOUNT_ID || process.env.NEXT_PUBLIC_MY_ACCOUNT_ID;
+  const operatorKey = process.env.MY_PRIVATE_KEY || process.env.NEXT_PUBLIC_MY_PRIVATE_KEY;
+  return Boolean(operatorId && operatorKey);
+}
+
 function getOperatorCredentials() {
   const operatorId = process.env.MY_ACCOUNT_ID || process.env.NEXT_PUBLIC_MY_ACCOUNT_ID;
   const operatorKey = process.env.MY_PRIVATE_KEY || process.env.NEXT_PUBLIC_MY_PRIVATE_KEY;
@@ -60,22 +66,28 @@ export async function getAccountBalance(accountId: string): Promise<number> {
   if (!accountId) return 0;
 
   const cleanAccountId = accountId.trim();
-  const response = await fetch(`${MIRROR_NODE_URL}/balances?account.id=${cleanAccountId}`);
+  
+  try {
+    const response = await fetch(`${MIRROR_NODE_URL}/balances?account.id=${cleanAccountId}`);
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error(`Mirror node balance error (${response.status}):`, errorText);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Mirror node balance error (${response.status}):`, errorText);
+      return 0;
+    }
+
+    const data = await response.json() as { balances?: Array<{ balance?: number }> };
+    const balanceRow = data?.balances?.[0];
+
+    if (!balanceRow) {
+      return 0;
+    }
+
+    return Number(balanceRow.balance || 0) / 100_000_000;
+  } catch (error) {
+    console.warn(`Unable to query Hedera balance for ${cleanAccountId}:`, error);
     return 0;
   }
-
-  const data = await response.json() as { balances?: Array<{ balance?: number }> };
-  const balanceRow = data?.balances?.[0];
-
-  if (!balanceRow) {
-    return 0;
-  }
-
-  return Number(balanceRow.balance || 0) / 100_000_000;
 }
 
 export async function getHbarUsdPrice(): Promise<number> {

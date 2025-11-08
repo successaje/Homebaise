@@ -20,6 +20,8 @@ import { handlePortfolio } from './handlers/portfolio';
 import { handleBalance } from './handlers/balance';
 import { handleBrowse } from './handlers/browse';
 import { handleInvest } from './handlers/invest';
+import { handleTransfer } from './handlers/transfer';
+import { handleAccount } from './handlers/account';
 
 // Extend context to include user session
 export interface BotContext extends Context {
@@ -111,6 +113,8 @@ bot.command('portfolio', requireAuth, handlePortfolio);
 bot.command('balance', requireAuth, handleBalance);
 bot.command('browse', requireAuth, handleBrowse);
 bot.command('invest', requireAuth, handleInvest);
+bot.command('transfer', requireAuth, handleTransfer);
+bot.command('account', requireAuth, handleAccount);
 bot.command('help', async (ctx) => {
   await ctx.reply(
     `*Homebaise Bot Commands*\n\n` +
@@ -118,6 +122,8 @@ bot.command('help', async (ctx) => {
     `💰 */balance* - Check your HBAR balance\n` +
     `🏠 */browse* - Browse available properties\n` +
     `💸 */invest* - Invest in a property\n` +
+    `🔁 */transfer* - Send HBAR to another user\n` +
+    `🪪 */account* - View your account & wallet details\n` +
     `❓ */help* - Show this help message\n\n` +
     `_Start any command with / to see what you can do!_`,
     { parse_mode: 'Markdown' }

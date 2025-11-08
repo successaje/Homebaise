@@ -168,6 +168,62 @@ export async function getProperties(token: string): Promise<Property[] | null> {
   }
 }
 
+export interface TransferHbarPayload {
+  senderId: string;
+  amount: number;
+  recipientPhone?: string;
+  recipientAccountId?: string;
+  memo?: string;
+}
+
+export interface TransferHbarResult {
+  success: boolean;
+  transactionId?: string;
+  hashscanUrl?: string;
+  receiverAccountId?: string;
+  recipientName?: string | null;
+  error?: string;
+}
+
+export async function transferHbarThroughBot(payload: TransferHbarPayload): Promise<TransferHbarResult> {
+  if (!config.bot.serverToken) {
+    return { success: false, error: 'Bot server token is not configured' };
+  }
+
+  try {
+    const response = await apiClient.post(
+      `/api/bot/transfer`,
+      payload,
+      {
+        headers: {
+          'X-Bot-Token': config.bot.serverToken,
+        },
+      }
+    );
+
+    return {
+      success: true,
+      transactionId: response.data.transactionId,
+      hashscanUrl: response.data.hashscanUrl,
+      receiverAccountId: response.data.receiverAccountId,
+      recipientName: response.data.recipientName ?? null,
+    };
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const message =
+        (error.response?.data as { error?: string })?.error ||
+        error.response?.statusText ||
+        error.message;
+      return { success: false, error: message };
+    }
+
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unexpected error while transferring HBAR',
+    };
+  }
+}
+
 export async function createInvestment(
   propertyId: string,
   amount: number,

@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { randomUUID } from 'crypto';
 import { config } from './config';
 import * as dns from 'dns';
-import { createHederaAccount, getAccountBalance, getHbarUsdPrice } from './hedera';
+import { createHederaAccount, getAccountBalance, getHbarUsdPrice, hasHederaOperatorCredentials } from './hedera';
 
 // Set DNS to prefer IPv4 for better connectivity
 dns.setDefaultResultOrder('ipv4first');
@@ -166,6 +166,36 @@ export async function getUserByPhone(phoneNumber: string): Promise<{ id: string;
   }
 }
 
+export interface BasicUserProfile {
+  id: string;
+  email?: string | null;
+  full_name?: string | null;
+  phone_number?: string | null;
+  hedera_account_id?: string | null;
+  hedera_private_key?: string | null;
+  wallet_address?: string | null;
+}
+
+export async function getUserProfile(userId: string): Promise<BasicUserProfile | null> {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, email, full_name, phone_number, hedera_account_id, hedera_private_key, wallet_address')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Failed to fetch user profile:', error);
+      return null;
+    }
+
+    return data as BasicUserProfile | null;
+  } catch (error) {
+    console.error('Unexpected error fetching user profile:', error);
+    return null;
+  }
+}
+
 export async function createUserWithPhoneAndEmail(
   phoneNumber: string,
   email: string,
@@ -254,23 +284,50 @@ export async function createUserWithPhoneAndEmail(
   }
 }
 
+function isHederaAccountId(value?: string | null): value is string {
+  if (typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  return /^\d+\.\d+\.\d+$/.test(trimmed);
+}
+
+function sanitizeAccountId(value?: string | null): string | null {
+  if (!isHederaAccountId(value)) return null;
+  return value!.trim();
+}
+
 export async function ensureHederaAccountForUser(userId: string): Promise<string | null> {
-  const { data: profile, error } = await supabase
-    .from('profiles')
-    .select('id, wallet_address, hedera_account_id, hedera_private_key, hedera_public_key, hedera_evm_address')
-    .eq('id', userId)
-    .maybeSingle();
-
-  if (error) {
-    console.error('Failed to fetch profile for Hedera check:', error);
-    return null;
-  }
-
-  if (profile?.hedera_account_id) {
-    return profile.hedera_account_id;
-  }
-
   try {
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('id, wallet_address, hedera_account_id, hedera_private_key, hedera_public_key, hedera_evm_address')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Failed to fetch profile for Hedera check:', error);
+      return null;
+    }
+
+    const existingAccountId =
+      sanitizeAccountId(profile?.hedera_account_id) ??
+      sanitizeAccountId(profile?.wallet_address);
+
+    if (existingAccountId) {
+      // Make sure profile reflects the account ID if it was only stored in wallet_address
+      if (!isHederaAccountId(profile?.hedera_account_id)) {
+        await supabase
+          .from('profiles')
+          .update({ hedera_account_id: existingAccountId, updated_at: new Date().toISOString() })
+          .eq('id', userId);
+      }
+      return existingAccountId;
+    }
+
+    if (!hasHederaOperatorCredentials()) {
+      console.warn('Hedera operator credentials missing; cannot auto-create Hedera account.');
+      return null;
+    }
+
     const account = await createHederaAccount();
 
     const updatePayload: Record<string, string | null> = {
@@ -278,13 +335,11 @@ export async function ensureHederaAccountForUser(userId: string): Promise<string
       hedera_private_key: account.privateKey,
       hedera_public_key: account.publicKey,
       hedera_evm_address: account.evmAddress,
-      wallet_address: account.accountId,
       updated_at: new Date().toISOString(),
     };
 
-    if (profile?.wallet_address && !profile.wallet_address.startsWith('0.')) {
-      // Preserve existing non-Hedera wallet addresses
-      updatePayload.wallet_address = profile.wallet_address;
+    if (!profile?.wallet_address || isHederaAccountId(profile.wallet_address)) {
+      updatePayload.wallet_address = account.accountId;
     }
 
     await supabase
