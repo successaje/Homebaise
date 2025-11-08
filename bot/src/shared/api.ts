@@ -77,23 +77,51 @@ export interface Property {
 }
 
 // API functions
-export async function getUserPortfolio(userId: string, token: string): Promise<PortfolioSummary | null> {
+export async function getUserPortfolio(userId: string): Promise<PortfolioSummary | null> {
   try {
-    const response = await apiClient.get(`/api/portfolio?userId=${userId}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    return response.data.portfolio || response.data;
+    if (!config.bot.serverToken) {
+      console.warn('Bot server token missing. Returning empty portfolio.');
+      return {
+        totalInvested: 0,
+        currentValue: 0,
+        returns: 0,
+        properties: [],
+      };
+    }
+
+    const response = await apiClient.post(
+      '/api/bot/portfolio',
+      { userId },
+      {
+        headers: {
+          'X-Bot-Token': config.bot.serverToken,
+        },
+      }
+    );
+
+    const data = response.data || {};
+    const summary = data.summary || {};
+    const portfolio = Array.isArray(data.portfolio) ? data.portfolio : [];
+
+    return {
+      totalInvested: Number(summary.totalInvested ?? 0),
+      currentValue: Number(summary.totalInvested ?? 0),
+      returns: Number(summary.totalEarnings ?? 0),
+      properties: portfolio.map((item: any) => ({
+        id: String(item.property_id || item.propertyId || item.id || 'unknown'),
+        name: item.property_name || item.propertyName || 'Unknown Property',
+        investment: Number(item.total_invested ?? item.totalInvested ?? 0),
+        tokens: Number(item.total_tokens ?? item.totalTokens ?? 0),
+        fundedPercent: Number(item.funded_percent ?? item.fundedPercent ?? 0),
+      })),
+    };
   } catch (error) {
     console.error('Error fetching portfolio:', error);
-    
-    // Return mock data for demo purposes
     return {
       totalInvested: 0,
       currentValue: 0,
       returns: 0,
-      properties: []
+      properties: [],
     };
   }
 }

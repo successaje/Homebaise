@@ -14,9 +14,18 @@ import {
   normalizePhoneNumber,
   getUserProfile,
   getWalletSnapshot,
+  getNotificationPreferences,
+  updateNotificationPreferences,
+  getRecentBotNotifications,
+  NotificationPreferences,
 } from '../shared/database';
 import { createOTP, verifyOTP } from '../shared/auth';
-import { getUserPortfolio, getWalletBalance, getProperties, transferHbarThroughBot } from '../shared/api';
+import {
+  getUserPortfolio,
+  getWalletBalance,
+  getProperties,
+  transferHbarThroughBot,
+} from '../shared/api';
 import { handleStart } from './handlers/start';
 import { handleInvest } from './handlers/invest';
 import {
@@ -24,6 +33,7 @@ import {
   buildMainMenuKeyboard,
   buildBackToMenuKeyboard,
   buildTransferConfirmKeyboard,
+  buildAlertPreferencesKeyboard,
 } from './ui';
 import { registerNotificationBridge } from './notifications';
 
@@ -163,11 +173,12 @@ async function sendTokensSummary(ctx: BotContext) {
     return;
   }
 
-  const portfolio = await getUserPortfolio(ctx.session.userId, config.bot.serverToken);
+  const portfolio = await getUserPortfolio(ctx.session.userId);
 
-  if (!portfolio || !portfolio.properties?.length) {
+  if (!portfolio || portfolio.properties.length === 0) {
     await ctx.reply(
-      `🎟️ You don't have any property tokens yet.\nExplore opportunities under *View Properties*.`,
+      `🎟️ You don't have any property tokens yet.
+Explore opportunities under *View Properties*.`,
       {
         parse_mode: 'Markdown',
         reply_markup: buildBackToMenuKeyboard(),
@@ -177,12 +188,15 @@ async function sendTokensSummary(ctx: BotContext) {
   }
 
   const lines = portfolio.properties.slice(0, 5).map((property) => {
-    const tokens = property.tokens ?? 0;
-    const invested = property.investment ?? 0;
-    return `• *${property.name}*\n  Tokens: ${tokens}\n  Invested: $${invested.toFixed(2)}\n`;
+    return `• *${property.name}*
+  Tokens: ${property.tokens}
+  Invested: $${property.investment.toFixed(2)}`;
   });
 
-  let message = `🎟️ *Your Tokens*\n\n${lines.join('\n')}`;
+  let message = `🎟️ *Your Tokens*
+
+${lines.join('\n\n')}`;
+  message += `\n\n_Total Invested_: $${portfolio.totalInvested.toFixed(2)}`;
 
   if (portfolio.properties.length > 5) {
     message += `\n…and ${portfolio.properties.length - 5} more holdings.`;
@@ -472,6 +486,91 @@ async function handleTransferFlowInput(ctx: BotContext, text: string) {
   }
 }
 
+async function sendAlertPreferences(ctx: BotContext) {
+  if (!ctx.session?.userId) {
+    await ctx.reply('❌ Please authenticate first using /start.');
+    return;
+  }
+
+  const preferences = await getNotificationPreferences(ctx.session.userId);
+
+  if (!preferences) {
+    await ctx.reply('⚠️ Unable to load notification settings right now. Please try again later.');
+    return;
+  }
+
+  const message =
+    `🔔 *Notification Preferences*\n\n` +
+    `Toggle which alerts you want to receive in Telegram.`;
+
+  await ctx.reply(message, {
+    parse_mode: 'Markdown',
+    reply_markup: buildAlertPreferencesKeyboard(preferences),
+  });
+}
+
+async function toggleAlertPreference(ctx: BotContext, key: keyof NotificationPreferences) {
+  if (!ctx.session?.userId) return;
+
+  const preferences = await getNotificationPreferences(ctx.session.userId);
+  if (!preferences) {
+    await ctx.answerCbQuery('Unable to load preferences. Try again later.', { show_alert: true });
+    return;
+  }
+
+  const nextValue = !preferences[key];
+  const updated = await updateNotificationPreferences(ctx.session.userId, {
+    [key]: nextValue,
+  } as Partial<NotificationPreferences>);
+
+  if (!updated) {
+    await ctx.answerCbQuery('Failed to update preference.', { show_alert: true });
+    return;
+  }
+
+  await ctx.editMessageReplyMarkup(buildAlertPreferencesKeyboard(updated)).catch(() => undefined);
+  await ctx.answerCbQuery(`${key.replace(/_/g, ' ')} ${nextValue ? 'enabled' : 'disabled'}.`);
+}
+
+async function sendActivityFeed(ctx: BotContext) {
+  if (!ctx.session?.userId) {
+    await ctx.reply('❌ Please authenticate first using /start.');
+    return;
+  }
+
+  const notifications = await getRecentBotNotifications(ctx.session.userId, 5);
+
+  if (!notifications || notifications.length === 0) {
+    await ctx.reply('📭 No recent activity yet. I’ll let you know when something happens!', {
+      reply_markup: buildBackToMenuKeyboard(),
+    });
+    return;
+  }
+
+  const lines = notifications.map((notif) => {
+    const date = new Date(notif.created_at ?? new Date()).toLocaleString();
+    return `• *${notif.title || 'Notification'}*\n  ${notif.message || ''}\n  _${date}_`;
+  });
+
+  await ctx.reply(`📰 *Recent Activity*\n\n${lines.join('\n\n')}`, {
+    parse_mode: 'Markdown',
+    reply_markup: buildBackToMenuKeyboard(),
+  });
+}
+
+async function sendSupportOptions(ctx: BotContext) {
+  await ctx.reply(
+    `🛎️ *Need help?*\n\n` +
+      `• Visit the Help Center: https://homebaise.vercel.app/help\n` +
+      `• Email support: support@homebaise.com\n` +
+      `• Join the Community: https://t.me/homebaise`,
+    {
+      parse_mode: 'Markdown',
+      reply_markup: buildBackToMenuKeyboard(),
+    }
+  );
+}
+
 // Initialize bot with custom options
 const bot = new Telegraf<BotContext>(config.telegram.token, {
   telegram: {
@@ -602,6 +701,37 @@ bot.action(ACTIONS.FLOW_TRANSFER_CONFIRM, async (ctx) => {
   if (!(await ensureAuthenticatedForAction(ctx))) return;
   await ctx.answerCbQuery().catch(() => undefined);
   await completeTransferFlow(ctx);
+});
+
+bot.action(ACTIONS.MANAGE_ALERTS, async (ctx) => {
+  if (!(await ensureAuthenticatedForAction(ctx))) return;
+  await ctx.answerCbQuery().catch(() => undefined);
+  await sendAlertPreferences(ctx);
+});
+
+bot.action(ACTIONS.VIEW_ACTIVITY, async (ctx) => {
+  if (!(await ensureAuthenticatedForAction(ctx))) return;
+  await ctx.answerCbQuery().catch(() => undefined);
+  await sendActivityFeed(ctx);
+});
+
+bot.action(ACTIONS.GET_SUPPORT, async (ctx) => {
+  await ctx.answerCbQuery().catch(() => undefined);
+  await sendSupportOptions(ctx);
+});
+
+bot.action(new RegExp(`^${ACTIONS.ALERT_TOGGLE_PREFIX}`), async (ctx) => {
+  if (!(await ensureAuthenticatedForAction(ctx))) return;
+  const callbackData =
+    ctx.callbackQuery && 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : undefined;
+  const key = callbackData?.replace(ACTIONS.ALERT_TOGGLE_PREFIX, '') as keyof NotificationPreferences | undefined;
+
+  if (!key) {
+    await ctx.answerCbQuery('Unknown preference', { show_alert: true });
+    return;
+  }
+
+  await toggleAlertPreference(ctx, key);
 });
 
 bot.action(new RegExp(`^${ACTIONS.VIEW_PROPERTY_PREFIX}`), async (ctx) => {

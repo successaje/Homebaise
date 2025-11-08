@@ -2,6 +2,7 @@ import { Context } from 'telegraf';
 import { BotContext } from '../bot';
 import { getUserPortfolio } from '../../shared/api';
 import { logNotification } from '../../shared/database';
+import { ACTIONS } from '../ui';
 
 export async function handlePortfolio(ctx: BotContext) {
   if (!ctx.session?.userId) {
@@ -11,43 +12,45 @@ export async function handlePortfolio(ctx: BotContext) {
   
   await ctx.reply('⏳ Loading your portfolio...');
   
-  // Get portfolio data from API
-  // Note: You'll need to get the user's auth token
-  // For now, we'll use a placeholder
-  const portfolio = await getUserPortfolio(ctx.session.userId, '');
+  const portfolio = await getUserPortfolio(ctx.session.userId);
   
   if (!portfolio) {
     await ctx.reply(
       `❌ Unable to load portfolio data.\n\n` +
-      `This might be because:\n` +
-      `• Your account is not fully set up in the main app\n` +
-      `• You haven't made any investments yet\n` +
-      `• The service is temporarily unavailable\n\n` +
-      `Please visit the main Homebaise app to complete your setup or make your first investment.`
+      `Please visit the Homebaise app to confirm your account setup or try again shortly.`
     );
     return;
   }
   
-  // Format portfolio message
-  const returnsEmoji = portfolio.returns >= 0 ? '📈' : '📉';
-  const returnsColor = portfolio.returns >= 0 ? '+' : '';
+  if (!portfolio.properties.length) {
+    await ctx.reply(
+      `You don't have any investments yet.\n\nBrowse available properties to make your first investment.`,
+      {
+        reply_markup: {
+          inline_keyboard: [[{ text: 'Browse Properties', callback_data: ACTIONS.VIEW_PROPERTIES }]],
+        },
+      }
+    );
+    return;
+  }
+  
+  const earnings = portfolio.returns || 0;
+  const earningsEmoji = earnings >= 0 ? '📈' : '📉';
+  const earningsLabel = earnings >= 0 ? `+$${earnings.toFixed(2)}` : `-$${Math.abs(earnings).toFixed(2)}`;
   
   let message = `📊 *Your Homebaise Portfolio*\n\n`;
   message += `💵 *Total Invested*: $${portfolio.totalInvested.toLocaleString()}\n`;
-  message += `🎯 *Current Value*: $${portfolio.currentValue.toLocaleString()}\n`;
-  message += `${returnsEmoji} *Returns*: ${returnsColor}${portfolio.returns.toFixed(2)}%\n\n`;
+  message += `${earningsEmoji} *Lifetime Earnings*: ${earningsLabel}\n\n`;
   
-  if (portfolio.properties.length > 0) {
-    message += `*Properties:*\n\n`;
-    portfolio.properties.forEach((property, index) => {
-      message += `${index + 1}. *${property.name}*\n`;
-      message += `   💵 Investment: $${property.investment.toLocaleString()}\n`;
-      message += `   🪙 Tokens: ${property.tokens.toLocaleString()}\n`;
-      message += `   📊 Funding: ${property.fundedPercent}%\n\n`;
-    });
-  } else {
-    message += `_No investments yet. Use /browse to find properties!_`;
-  }
+  portfolio.properties.slice(0, 5).forEach((property, index) => {
+    message += `${index + 1}. *${property.name}*\n`;
+    message += `   💵 Investment: $${property.investment.toLocaleString()}\n`;
+    message += `   🪙 Tokens: ${property.tokens.toLocaleString()}\n`;
+    if (property.fundedPercent) {
+      message += `   📊 Funding: ${property.fundedPercent}%\n`;
+    }
+    message += '\n';
+  });
   
   await ctx.reply(message, { parse_mode: 'Markdown' });
   

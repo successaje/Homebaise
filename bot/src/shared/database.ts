@@ -400,6 +400,51 @@ export async function getNotificationPreferences(userId: string): Promise<Notifi
   return data as NotificationPreferences;
 }
 
+export async function updateNotificationPreferences(
+  userId: string,
+  updates: Partial<NotificationPreferences>
+): Promise<NotificationPreferences | null> {
+  const payload = {
+    user_id: userId,
+    ...updates,
+    updated_at: new Date().toISOString(),
+  } as Record<string, unknown>;
+
+  const { data, error } = await supabase
+    .from('user_notification_preferences')
+    .upsert(payload, { onConflict: 'user_id' })
+    .select('*')
+    .single();
+
+  if (error || !data) {
+    console.error('Failed to update notification preferences:', error);
+    return null;
+  }
+
+  return data as NotificationPreferences;
+}
+
+export async function getRecentBotNotifications(userId: string, limit = 5): Promise<Array<{
+  title?: string | null;
+  message?: string | null;
+  message_type?: string | null;
+  created_at?: string | null;
+}>> {
+  const { data, error } = await supabase
+    .from('bot_notifications')
+    .select('title, message, message_type, created_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error('Failed to load recent bot notifications:', error);
+    return [];
+  }
+
+  return data ?? [];
+}
+
 export async function logNotification(
   userId: string,
   platform: string,
