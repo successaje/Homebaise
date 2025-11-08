@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
+import { randomUUID } from 'crypto';
 import { config } from './config';
 import * as dns from 'dns';
+import { createHederaAccount, getAccountBalance, getHbarUsdPrice } from './hedera';
 
 // Set DNS to prefer IPv4 for better connectivity
 dns.setDefaultResultOrder('ipv4first');
@@ -97,8 +99,19 @@ export async function createBotSession(
   }
 }
 
+export interface WalletSnapshot {
+  hbarBalance: number;
+  usdValue: number;
+  recentActivity: Array<{
+    type: string;
+    amount: number;
+    timestamp: string;
+  }>;
+  accountId?: string | null;
+}
+
 // Normalize phone number to standard format
-function normalizePhoneNumber(phone: string): string {
+export function normalizePhoneNumber(phone: string): string {
   // Remove all non-digit characters except +
   let normalized = phone.replace(/[^\d+]/g, '');
   
@@ -151,6 +164,176 @@ export async function getUserByPhone(phoneNumber: string): Promise<{ id: string;
       phone_number: normalizedPhone
     };
   }
+}
+
+export async function createUserWithPhoneAndEmail(
+  phoneNumber: string,
+  email: string,
+  fullName?: string
+): Promise<{ id: string; email?: string; full_name?: string; phone_number?: string }> {
+  const normalizedPhone = normalizePhoneNumber(phoneNumber);
+  const derivedName = fullName || email.split('@')[0]?.replace(/[\.\-_]/g, ' ');
+
+  try {
+    const { data, error } = await supabase.auth.admin.createUser({
+      email,
+      email_confirm: true,
+      phone: normalizedPhone,
+      phone_confirm: true,
+      password: randomUUID(),
+      user_metadata: {
+        full_name: derivedName,
+        source: 'telegram_bot',
+      },
+    });
+
+    if (error || !data?.user) {
+      throw error ?? new Error('Failed to create Supabase user');
+    }
+
+    const profilePayload = {
+      id: data.user.id,
+      email,
+      full_name: data.user.user_metadata?.full_name || derivedName,
+      phone_number: normalizedPhone,
+      provider: 'telegram',
+      role: 'user',
+      updated_at: new Date().toISOString(),
+    };
+
+    await supabase
+      .from('profiles')
+      .upsert(profilePayload, { onConflict: 'id' });
+
+    return {
+      id: data.user.id,
+      email: profilePayload.email,
+      full_name: profilePayload.full_name,
+      phone_number: profilePayload.phone_number,
+    };
+  } catch (error: any) {
+    const message = error?.message || '';
+
+    // Handle case where user already exists (by email or phone)
+    if (message.includes('already registered')) {
+      const existingByPhone = await getUserByPhone(normalizedPhone);
+      if (existingByPhone) {
+        // Ensure phone number is stored on profile
+        await supabase
+          .from('profiles')
+          .update({ phone_number: normalizedPhone })
+          .eq('id', existingByPhone.id);
+        return existingByPhone;
+      }
+
+      const { data: profileByEmail } = await supabase
+        .from('profiles')
+        .select('id, email, full_name, phone_number')
+        .eq('email', email)
+        .maybeSingle();
+
+      if (profileByEmail) {
+        if (!profileByEmail.phone_number) {
+          await supabase
+            .from('profiles')
+            .update({ phone_number: normalizedPhone })
+            .eq('id', profileByEmail.id);
+        }
+
+        return {
+          id: profileByEmail.id,
+          email: profileByEmail.email,
+          full_name: profileByEmail.full_name ?? derivedName,
+          phone_number: normalizePhoneNumber(profileByEmail.phone_number || normalizedPhone),
+        };
+      }
+    }
+
+    console.error('Failed to create user via bot:', error);
+    throw error instanceof Error ? error : new Error('Failed to create user');
+  }
+}
+
+export async function ensureHederaAccountForUser(userId: string): Promise<string | null> {
+  const { data: profile, error } = await supabase
+    .from('profiles')
+    .select('id, wallet_address, hedera_account_id, hedera_private_key, hedera_public_key, hedera_evm_address')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Failed to fetch profile for Hedera check:', error);
+    return null;
+  }
+
+  if (profile?.hedera_account_id) {
+    return profile.hedera_account_id;
+  }
+
+  try {
+    const account = await createHederaAccount();
+
+    const updatePayload: Record<string, string | null> = {
+      hedera_account_id: account.accountId,
+      hedera_private_key: account.privateKey,
+      hedera_public_key: account.publicKey,
+      hedera_evm_address: account.evmAddress,
+      wallet_address: account.accountId,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (profile?.wallet_address && !profile.wallet_address.startsWith('0.')) {
+      // Preserve existing non-Hedera wallet addresses
+      updatePayload.wallet_address = profile.wallet_address;
+    }
+
+    await supabase
+      .from('profiles')
+      .upsert({ id: userId, ...updatePayload }, { onConflict: 'id' });
+
+    return account.accountId;
+  } catch (error) {
+    console.error('Failed to create Hedera account for user:', error);
+    return null;
+  }
+}
+
+export async function getWalletSnapshot(userId: string): Promise<WalletSnapshot | null> {
+  const { data: profile, error } = await supabase
+    .from('profiles')
+    .select('hedera_account_id')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Failed to load profile for wallet snapshot:', error);
+    return null;
+  }
+
+  let accountId = profile?.hedera_account_id;
+
+  if (!accountId) {
+    accountId = await ensureHederaAccountForUser(userId);
+  }
+
+  if (!accountId) {
+    return {
+      hbarBalance: 0,
+      usdValue: 0,
+      recentActivity: [],
+      accountId: null,
+    };
+  }
+
+  const balance = await getAccountBalance(accountId);
+  const hbarPrice = balance > 0 ? await getHbarUsdPrice() : 0;
+
+  return {
+    hbarBalance: balance,
+    usdValue: balance * hbarPrice,
+    recentActivity: [],
+    accountId,
+  };
 }
 
 export async function getNotificationPreferences(userId: string): Promise<NotificationPreferences | null> {

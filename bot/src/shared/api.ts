@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { config } from './config';
 import * as dns from 'dns';
+import { getWalletSnapshot } from './database';
 
 // Set DNS to prefer IPv4 for better connectivity
 dns.setDefaultResultOrder('ipv4first');
@@ -60,6 +61,7 @@ export interface WalletBalance {
     amount: number;
     timestamp: string;
   }>;
+  accountId?: string | null;
 }
 
 export interface Property {
@@ -96,23 +98,23 @@ export async function getUserPortfolio(userId: string, token: string): Promise<P
   }
 }
 
-export async function getWalletBalance(userId: string, token: string): Promise<WalletBalance | null> {
+export async function getWalletBalance(userId: string): Promise<WalletBalance | null> {
   try {
-    const response = await apiClient.get(`/api/wallet/balance?userId=${userId}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    return response.data.balance || response.data;
+    const snapshot = await getWalletSnapshot(userId);
+
+    if (!snapshot) {
+      return null;
+    }
+
+    return {
+      hbarBalance: snapshot.hbarBalance,
+      usdValue: snapshot.usdValue,
+      recentActivity: snapshot.recentActivity,
+      accountId: snapshot.accountId,
+    };
   } catch (error) {
     console.error('Error fetching wallet balance:', error);
-    
-    // Return mock data for demo purposes
-    return {
-      hbarBalance: 0,
-      usdValue: 0,
-      recentActivity: []
-    };
+    return null;
   }
 }
 

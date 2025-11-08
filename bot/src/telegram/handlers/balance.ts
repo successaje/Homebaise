@@ -11,7 +11,7 @@ export async function handleBalance(ctx: BotContext) {
   
   await ctx.reply('⏳ Checking your balance...');
   
-  const balance = await getWalletBalance(ctx.session.userId, '');
+  const balance = await getWalletBalance(ctx.session.userId);
   
   if (!balance) {
     await ctx.reply(
@@ -26,8 +26,14 @@ export async function handleBalance(ctx: BotContext) {
   }
   
   let message = `💰 *Your Hedera Wallet*\n\n`;
-  message += `💎 *HBAR Balance*: ${balance.hbarBalance.toFixed(2)} HBAR\n`;
-  message += `💵 *USD Value*: ~$${balance.usdValue.toFixed(2)}\n\n`;
+  message += `💎 *HBAR Balance*: ${balance.hbarBalance.toFixed(4)} HBAR\n`;
+  message += `💵 *USD Value*: ~$${balance.usdValue.toFixed(2)}\n`;
+  
+  if (balance.accountId) {
+    message += `🆔 *Account ID*: \`${balance.accountId}\`\n\n`;
+  } else {
+    message += `\n`;
+  }
   
   if (balance.recentActivity.length > 0) {
     message += `*Recent Activity:*\n\n`;
