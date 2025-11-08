@@ -137,6 +137,16 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) to see the app.
 
+### 🔐 Credentials Access
+
+To ensure the privacy and security of Hedera and Telegram credentials, all sensitive test keys are securely stored in a private Google Doc.
+
+Judges or reviewers can request access here:  
+👉 [Request Access to Secure Test Credentials](https://docs.google.com/document/d/11j2yGlSbAZubb9lusbA2W0jMZSgccJLnVcjjLa7L8hE/edit?usp=sharing)
+
+> Access will be granted to verified hackathon judges upon request.
+
+
 ### Quick Links
 
 - 📖 **[Technical Documentation](TECHNICAL_DOCUMENTATION.md)** - Complete architecture and setup guide
@@ -144,6 +154,21 @@ Open [http://localhost:3000](http://localhost:3000) to see the app.
 - 🎬 **[Pitch Video](https://youtu.be/YH5-hDscbrM)** - Watch our pitch video
 - 📊 **[Presentation Slides](homebaise.pdf)** - Download Pitch deck
 - 🤖 **[Try the Bot](https://t.me/homebaise_bot)** - Invest via Telegram
+
+
+---
+
+## 🤖 Telegram Bot
+
+Our Telegram bot makes it easy to manage your Homebaise portfolio without opening the web app:
+
+- **Getting started:** Tap `Start` in [@homebaise_bot](https://t.me/homebaise_bot), share your phone number, and confirm the OTP we send to link your account.
+- **Portfolio commands:** `/portfolio` shows holdings, `/balance` checks your HBAR wallet, `/browse` lists investable properties, and `/invest <property_id> <amount>` submits an investment.
+- **Help on demand:** Use `/help` anytime for a full menu of available commands.
+- **Real-time notifications:** Receive alerts for investment confirmations, yield payouts, property milestones, and new listings—respecting your in-app notification preferences.
+- **Roadmap:** WhatsApp support, natural language queries, and voice interactions are planned next.
+
+You can explore every bot feature with live data using the same credentials as the web platform.
 
 ---
 
