@@ -1,7 +1,7 @@
-import { Context } from 'telegraf';
 import { BotContext } from '../bot';
 import { getUserByPhone } from '../../shared/database';
 import { createOTP } from '../../shared/auth';
+import { buildMainMenuKeyboard } from '../ui';
 
 export async function handleStart(ctx: BotContext) {
   const chatId = String(ctx.chat?.id);
@@ -11,13 +11,11 @@ export async function handleStart(ctx: BotContext) {
   if (ctx.session?.authenticated) {
     await ctx.reply(
       `👋 Welcome back, ${firstName}!\n\n` +
-      `You're already authenticated. Here's what you can do:\n\n` +
-      `📊 /portfolio - View your investments\n` +
-      `💰 /balance - Check your balance\n` +
-      `🏠 /browse - Browse properties\n` +
-      `💸 /invest - Make an investment\n` +
-      `❓ /help - See all commands`,
-      { parse_mode: 'Markdown' }
+      `Choose an action below to continue.`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: buildMainMenuKeyboard(),
+      }
     );
     return;
   }
