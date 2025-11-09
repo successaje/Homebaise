@@ -8,6 +8,12 @@ interface HederaAccountResult {
   balance: number;
 }
 
+export function hasHederaOperatorCredentials(): boolean {
+  const operatorId = process.env.MY_ACCOUNT_ID || process.env.NEXT_PUBLIC_MY_ACCOUNT_ID;
+  const operatorKey = process.env.MY_PRIVATE_KEY || process.env.NEXT_PUBLIC_MY_PRIVATE_KEY;
+  return Boolean(operatorId && operatorKey);
+}
+
 export async function createHederaAccount(): Promise<HederaAccountResult> {
   try {
     // Get operator credentials from environment variables
