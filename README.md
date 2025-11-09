@@ -4,6 +4,15 @@
 
 **🏆 Hackathon Track:** Onchain Finance & Real-World Assets (RWA)
 
+### Quick Links
+
+- 📖 **[Technical Documentation](TECHNICAL_DOCUMENTATION.md)** - Complete architecture and setup guide
+- 📄 **[Certificate](cert/886eb452-88f0-489e-9772-b9605d6ba2ae.pdf)** - Project certification
+- 🎬 **[Pitch Video](https://youtu.be/YH5-hDscbrM)** - Watch our pitch video
+- 📊 **[Presentation Slides](homebaise.pdf)** - Download Pitch deck
+- 🤖 **[Try the Bot](https://t.me/homebaise_bot)** - Invest via Telegram
+
+
 ---
 
 ## 🚩 Problem
@@ -147,15 +156,6 @@ Judges or reviewers can request access here:
 > Access will be granted to verified hackathon judges upon request.
 
 
-### Quick Links
-
-- 📖 **[Technical Documentation](TECHNICAL_DOCUMENTATION.md)** - Complete architecture and setup guide
-- 📄 **[Certificate](cert/886eb452-88f0-489e-9772-b9605d6ba2ae.pdf)** - Project certification
-- 🎬 **[Pitch Video](https://youtu.be/YH5-hDscbrM)** - Watch our pitch video
-- 📊 **[Presentation Slides](homebaise.pdf)** - Download Pitch deck
-- 🤖 **[Try the Bot](https://t.me/homebaise_bot)** - Invest via Telegram
-
-
 ---
 
 ## 🤖 Telegram Bot
@@ -211,6 +211,222 @@ This project is built on **Hedera Hashgraph** with:
 - **Hedera Consensus Service (HCS)** - Immutable audit trails
 - **Native HBAR** - Payment processing
 - **Mirror Node** - Real-time balance queries
+
+### Hedera Service Code (GitHub)
+
+- [src/lib/hedera.ts](https://github.com/successaje/Homebaise/blob/main/src/lib/hedera.ts) — core helpers for creating accounts, minting HTS tokens (fungible & NFT), querying balances, and sending HBAR.
+- [src/lib/hedera-treasury.ts](https://github.com/successaje/Homebaise/blob/main/src/lib/hedera-treasury.ts) — treasury account orchestration, token associations, mint/distribution utilities used by property flows.
+- [src/app/api/bot/transfer/route.ts](https://github.com/successaje/Homebaise/blob/main/src/app/api/bot/transfer/route.ts) — secure service-role endpoint the Telegram bot calls to execute HBAR transfers between investors.
+- [src/app/api/bot/invest/route.ts](https://github.com/successaje/Homebaise/blob/main/src/app/api/bot/invest/route.ts) — bot-enabled investment flow that resolves property tokens and executes on-chain transfers.
+- [src/app/api/bot/portfolio/route.ts](https://github.com/successaje/Homebaise/blob/main/src/app/api/bot/portfolio/route.ts) — service-role Supabase view exposing token balances & earnings for bot users.
+
+**Account provisioning (20 HBAR bootstrap + mirror-node confirmation)**
+
+```ts 17:70:src/lib/hedera.ts 
+export async function createHederaAccount(): Promise<HederaAccountResult> {
+  const operatorId = process.env.MY_ACCOUNT_ID || process.env.NEXT_PUBLIC_MY_ACCOUNT_ID;
+  const operatorKey = process.env.MY_PRIVATE_KEY || process.env.NEXT_PUBLIC_MY_PRIVATE_KEY;
+  if (!operatorId || !operatorKey) {
+    throw new Error('Hedera operator credentials not found in environment variables');
+  }
+
+  const client = Client.forTestnet().setOperator(operatorId, operatorKey);
+  const newPrivateKey = PrivateKey.generateECDSA();
+  const transaction = new AccountCreateTransaction()
+    .setKey(newPrivateKey.publicKey)
+    .setInitialBalance(new Hbar(20));
+
+  const receipt = await (await transaction.execute(client)).getReceipt(client);
+  const newAccountId = receipt.accountId;
+  if (!newAccountId) throw new Error('Failed to create Hedera account');
+
+  await new Promise(resolve => setTimeout(resolve, 6000));
+  const mirrorNodeUrl = `https://testnet.mirrornode.hedera.com/api/v1/balances?account.id=${newAccountId}`;
+  const data = await (await fetch(mirrorNodeUrl)).json();
+
+  const balanceInHbar =
+    data.balances && data.balances.length > 0
+      ? data.balances[0].balance / 100000000
+      : 20;
+
+  client.close();
+  return {
+    accountId: newAccountId.toString(),
+    evmAddress: `0x${newPrivateKey.publicKey.toEvmAddress()}`,
+    privateKey: newPrivateKey.toString(),
+    publicKey: newPrivateKey.publicKey.toString(),
+    balance: balanceInHbar
+  };
+}
+```
+
+**Property treasury bootstrap (new account + finite HTS supply)**
+
+```ts 50:136:src/lib/hedera-treasury.ts
+export async function createPropertyTreasuryAccount(
+  client: Client,
+  initialBalance: Hbar = new Hbar(20)
+): Promise<TreasuryAccount> {
+  const privateKey = PrivateKey.generateECDSA();
+  const transaction = new AccountCreateTransaction()
+    .setECDSAKeyWithAlias(privateKey)
+    .setInitialBalance(new Hbar(20))
+    .setAccountMemo("A Property Treasury Account");
+
+  const receipt = await (await transaction.execute(client)).getReceipt(client);
+  const accountId = receipt.accountId;
+  if (!accountId) throw new Error("Failed to get account ID from receipt");
+
+  return {
+    accountId: accountId.toString(),
+    publicKey: privateKey.publicKey.toString(),
+    privateKey: privateKey.toString(),
+    initialBalance
+  };
+}
+
+export async function createPropertyToken(
+  client: Client,
+  metadata: TokenMetadata,
+  treasuryPrivateKey: string
+): Promise<MintedToken> {
+  const transaction = new TokenCreateTransaction()
+    .setTokenName(metadata.name)
+    .setTokenSymbol(metadata.symbol)
+    .setInitialSupply(metadata.initialSupply)
+    .setTreasuryAccountId(AccountId.fromString(metadata.treasuryAccountId))
+    .setSupplyType(TokenSupplyType.Finite)
+    .setMaxSupply(metadata.maxSupply)
+    .setTokenType(TokenType.FungibleCommon)
+    .setTokenMemo(`Homebaise | ${metadata.name} | Tokenized RE | ...`)
+    .setMaxTransactionFee(new Hbar(5));
+
+  const signedTx = await (await transaction.freezeWith(client))
+    .sign(PrivateKey.fromString(treasuryPrivateKey));
+
+  const receipt = await (await signedTx.execute(client)).getReceipt(client);
+  const tokenId = receipt.tokenId;
+  if (!tokenId) throw new Error("Failed to get token ID from receipt");
+
+  return {
+    tokenId: tokenId.toString(),
+    tokenName: metadata.name,
+    tokenSymbol: metadata.symbol,
+    totalSupply: metadata.initialSupply.toString(),
+    treasuryAccountId: metadata.treasuryAccountId
+  };
+}
+```
+
+**HBAR transfer primitive (wrapped with Hashscan logging)**
+
+```ts 283:333:src/lib/hedera.ts
+export async function sendHbar(input: SendHbarInput): Promise<SendHbarResult> {
+  const { senderAccountId, senderPrivateKey, receiverAccountId, amount, memo } = input;
+  if (!senderAccountId || !senderPrivateKey || !receiverAccountId || amount <= 0) {
+    throw new Error('Invalid input parameters for HBAR transfer');
+  }
+
+  const client = Client.forTestnet().setOperator(senderAccountId, senderPrivateKey);
+  const txTransfer = new TransferTransaction()
+    .addHbarTransfer(AccountId.fromString(senderAccountId), new Hbar(-amount))
+    .addHbarTransfer(AccountId.fromString(receiverAccountId), new Hbar(amount));
+  if (memo) {
+    txTransfer.setTransactionMemo(memo);
+  }
+
+  const txTransferResponse = await txTransfer.execute(client);
+  const receiptTransferTx = await txTransferResponse.getReceipt(client);
+  const txIdTransfer = txTransferResponse.transactionId.toString();
+  const hashscanUrl = `https://hashscan.io/testnet/transaction/${txIdTransfer}`;
+
+  client.close();
+  return {
+    transactionId: txIdTransfer,
+    status: receiptTransferTx.status.toString(),
+    hashscanUrl
+  };
+}
+```
+
+**Telegram bridge (auto-provision recipient, transfer, persist Supabase state)**
+
+```ts 35:149:src/app/api/bot/transfer/route.ts
+export async function POST(request: NextRequest) {
+  const token = request.headers.get('x-bot-token') || request.headers.get('X-Bot-Token');
+  if (!token || token !== process.env.BOT_SERVER_TOKEN) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const body = (await request.json().catch(() => ({}))) as TransferBody;
+  const rawAmount = Number(body.amount);
+  if (!body.senderId || !Number.isFinite(rawAmount) || rawAmount <= 0) {
+    return NextResponse.json({ error: 'Invalid sender or amount' }, { status: 400 });
+  }
+  if (!body.recipientPhone && !body.recipientAccountId) {
+    return NextResponse.json({ error: 'Recipient required (phone or accountId)' }, { status: 400 });
+  }
+
+  const { data: sender } = await supabaseAdmin
+    .from('profiles')
+    .select('id, full_name, email, phone_number, hedera_account_id, hedera_private_key')
+    .eq('id', body.senderId)
+    .maybeSingle();
+  if (!sender?.hedera_account_id || !sender.hedera_private_key) {
+    return NextResponse.json({ error: 'Sender does not have a Hedera account linked' }, { status: 400 });
+  }
+
+  let receiverAccountId: string | null = null;
+  if (body.recipientAccountId) {
+    receiverAccountId = body.recipientAccountId.trim();
+  } else if (body.recipientPhone) {
+    const normalizedPhone = normalizePhone(body.recipientPhone);
+    const { data: recipient } = await supabaseAdmin
+      .from('profiles')
+      .select('id, full_name, email, phone_number, hedera_account_id, hedera_private_key, hedera_public_key')
+      .eq('phone_number', normalizedPhone)
+      .maybeSingle();
+    if (!recipient) {
+      return NextResponse.json({ error: 'Recipient not found' }, { status: 404 });
+    }
+
+    if (isHederaAccountId(recipient.hedera_account_id)) {
+      receiverAccountId = recipient.hedera_account_id.trim();
+    } else {
+      const newAccount = await createHederaAccount();
+      receiverAccountId = newAccount.accountId;
+      await supabaseAdmin.from('profiles')
+        .update({
+          hedera_account_id: newAccount.accountId,
+          hedera_private_key: newAccount.privateKey,
+          hedera_public_key: newAccount.publicKey,
+          wallet_address: newAccount.accountId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', recipient.id);
+    }
+  }
+
+  const memo = body.memo?.slice(0, 90) ||
+    `Telegram transfer from ${sender.full_name || sender.email || 'Homebaise user'}`;
+
+  const transferResult = await sendHbar({
+    senderAccountId: sender.hedera_account_id,
+    senderPrivateKey: sender.hedera_private_key,
+    receiverAccountId: receiverAccountId!,
+    amount: Number(rawAmount.toFixed(8)),
+    memo,
+  });
+
+  return NextResponse.json({
+    success: true,
+    transactionId: transferResult.transactionId,
+    status: transferResult.status,
+    hashscanUrl: transferResult.hashscanUrl,
+    receiverAccountId,
+  });
+}
+```
 
 **Transaction Costs:**
 - Token creation: $0.05
