@@ -66,14 +66,22 @@ export interface WalletBalance {
 
 export interface Property {
   id: string;
-  name: string;
-  location: string;
-  totalValue: number;
-  fundedPercent: number;
-  yieldRate: number;
-  availableFunding: number;
-  property_type: string;
-  description: string;
+  name?: string;
+  title?: string;
+  location?: string;
+  city?: string;
+  country?: string;
+  totalValue?: number;
+  fundedPercent?: number;
+  funded_percent?: number;
+  yieldRate?: number;
+  expectedYield?: number;
+  availableFunding?: number;
+  property_type?: string;
+  description?: string;
+  slug?: string;
+  targetAmount?: number;
+  price?: number;
 }
 
 // API functions

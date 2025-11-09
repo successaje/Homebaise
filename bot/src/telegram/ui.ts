@@ -14,7 +14,12 @@ export const ACTIONS = {
   FLOW_TRANSFER_CONFIRM: 'FLOW_TRANSFER_CONFIRM',
   FLOW_TRANSFER_CANCEL: 'FLOW_TRANSFER_CANCEL',
   VIEW_PROPERTY_PREFIX: 'VIEW_PROPERTY_',
+  INVEST_PROPERTY_PREFIX: 'INVEST_PROPERTY_',
+  INVEST_QUICK_PREFIX: 'INVEST_QUICK_',
+  INVEST_CUSTOM: 'INVEST_CUSTOM',
   ALERT_TOGGLE_PREFIX: 'ALERT_TOGGLE_',
+  ONBOARD_EXISTING: 'ONBOARD_EXISTING',
+  ONBOARD_NEW: 'ONBOARD_NEW',
 } as const;
 
 export type ActionKey = typeof ACTIONS[keyof typeof ACTIONS];
@@ -90,6 +95,38 @@ export function buildNotificationKeyboard(actions: NotificationAction[]): Inline
 
   return {
     inline_keyboard: chunkArray(buttons, 2),
+  };
+}
+
+export function buildOnboardingChoiceKeyboard(): InlineKeyboardMarkup {
+  return {
+    inline_keyboard: [
+      [
+        { text: '🔑 I already have an account', callback_data: ACTIONS.ONBOARD_EXISTING },
+      ],
+      [
+        { text: '✨ Create a new account', callback_data: ACTIONS.ONBOARD_NEW },
+      ],
+    ],
+  };
+}
+
+export function buildInvestAmountKeyboard(propertyId: string, propertyName: string): InlineKeyboardMarkup {
+  const quickAmounts = [10, 25, 50];
+  const rows = quickAmounts.map((amount) => [
+    {
+      text: `$${amount}`,
+      callback_data: `${ACTIONS.INVEST_QUICK_PREFIX}${propertyId}:${amount}`,
+    },
+  ]);
+
+  rows.push([
+    { text: '✏️ Enter custom amount', callback_data: `${ACTIONS.INVEST_CUSTOM}:${propertyId}` },
+  ]);
+  rows.push([{ text: '⬅️ Back to Menu', callback_data: ACTIONS.SHOW_MENU }]);
+
+  return {
+    inline_keyboard: rows,
   };
 }
 

@@ -1,4 +1,5 @@
 import { Telegraf, Context } from 'telegraf';
+import { InlineKeyboardButton } from 'telegraf/typings/core/types/typegram';
 import { config } from '../shared/config';
 import * as dns from 'dns';
 
@@ -18,6 +19,8 @@ import {
   updateNotificationPreferences,
   getRecentBotNotifications,
   NotificationPreferences,
+  getUserByEmail,
+  updateUserPhone,
 } from '../shared/database';
 import { createOTP, verifyOTP } from '../shared/auth';
 import {
@@ -25,6 +28,7 @@ import {
   getWalletBalance,
   getProperties,
   transferHbarThroughBot,
+  createInvestmentByTitle,
 } from '../shared/api';
 import { handleStart } from './handlers/start';
 import { handleInvest } from './handlers/invest';
@@ -34,6 +38,8 @@ import {
   buildBackToMenuKeyboard,
   buildTransferConfirmKeyboard,
   buildAlertPreferencesKeyboard,
+  buildOnboardingChoiceKeyboard,
+  buildInvestAmountKeyboard,
 } from './ui';
 import { registerNotificationBridge } from './notifications';
 
@@ -50,6 +56,21 @@ type FlowState =
       type: 'TRANSFER';
       step: 'AMOUNT' | 'RECIPIENT' | 'CONFIRM';
       data: TransferFlowData;
+    }
+  | {
+      type: 'ONBOARDING';
+      step: 'CHOICE' | 'EMAIL_EXISTING' | 'EMAIL_NEW_OPTIONAL';
+      data: {
+        phone: string;
+      };
+    }
+  | {
+      type: 'INVEST';
+      step: 'AMOUNT' | 'CUSTOM_AMOUNT';
+      data: {
+        propertyId: string;
+        propertyName: string;
+      };
     };
 
 // Extend context to include user session
@@ -69,6 +90,10 @@ export interface BotContext extends Context {
 type SessionState = NonNullable<BotContext['session']>;
 const sessionStore = new Map<string, SessionState>();
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const propertyCache = new Map<
+  string,
+  { id: string; name: string; location: string; yieldRate: number; fundedPercent: number; totalValue: number; url?: string }
+>();
 const ACCOUNT_ID_REGEX = /^\d+\.\d+\.\d+$/;
 
 function getSessionState(chatId: string): SessionState {
@@ -124,6 +149,59 @@ async function sendMainMenu(ctx: BotContext, message?: string) {
       reply_markup: buildMainMenuKeyboard(),
     }
   );
+}
+
+async function removeCustomKeyboard(ctx: BotContext) {
+  await ctx.reply(' ', {
+    reply_markup: {
+      remove_keyboard: true,
+    },
+  }).catch(() => undefined);
+}
+
+async function finalizeAuthentication(
+  ctx: BotContext,
+  userId: string,
+  phoneNumber?: string,
+  welcomeMessage?: string
+) {
+  const chatId = String(ctx.chat?.id);
+
+  const accountId = await ensureHederaAccountForUser(userId);
+  try {
+    await createBotSession(userId, 'telegram', chatId);
+  } catch (error) {
+    console.warn('Bot session creation issue (continuing):', error);
+  }
+
+  ctx.session = {
+    ...(ctx.session || {}),
+    chatId,
+    userId,
+    phoneNumber: phoneNumber || ctx.session?.phoneNumber,
+    authenticated: true,
+    awaitingOTP: false,
+    awaitingEmail: false,
+    flow: undefined,
+  };
+  persistSessionState(chatId, ctx.session);
+
+  await removeCustomKeyboard(ctx);
+
+  if (welcomeMessage) {
+    await ctx.reply(welcomeMessage, { parse_mode: 'Markdown' });
+  } else {
+    await ctx.reply('✅ Account linked! You’re ready to start investing.', { parse_mode: 'Markdown' });
+  }
+
+  if (!accountId) {
+    await ctx.reply(
+      '⚠️ I could not verify your Hedera wallet automatically. You can connect one later from the web app.',
+      { parse_mode: 'Markdown' }
+    );
+  }
+
+  await sendMainMenu(ctx, '👇 Choose an action to continue:');
 }
 
 async function sendBalanceSummary(ctx: BotContext) {
@@ -243,20 +321,36 @@ async function sendPropertiesOverview(ctx: BotContext) {
     return;
   }
 
+  normalized.forEach((property) => {
+    propertyCache.set(property.id, {
+      id: property.id,
+      name: property.name,
+      location: property.location,
+      yieldRate: property.yieldRate,
+      fundedPercent: property.fundedPercent,
+      totalValue: property.totalValue,
+      url: property.url,
+    });
+  });
+
   const lines = normalized.map(
     (property) =>
       `• *${property.name}*\n  ${property.location}\n  Yield: ${property.yieldRate}% · Funded: ${property.fundedPercent}%`
   );
 
   const inlineKeyboard = [
-    ...normalized.map((property) => [
-      property.url
-        ? { text: `🔍 View ${property.name}`, url: property.url }
-        : {
-            text: `🔍 View ${property.name}`,
-            callback_data: `${ACTIONS.VIEW_PROPERTY_PREFIX}${property.id}`,
-          },
-    ]),
+    ...normalized.map((property) => {
+      const viewButton = property.url
+        ? ({ text: `🔍 View ${property.name}`, url: property.url } as InlineKeyboardButton)
+        : ({ text: `🔍 View ${property.name}`, callback_data: `${ACTIONS.VIEW_PROPERTY_PREFIX}${property.id}` } as InlineKeyboardButton.CallbackButton);
+
+      const investButton: InlineKeyboardButton.CallbackButton = {
+        text: `💸 Invest in ${property.name}`,
+        callback_data: `${ACTIONS.INVEST_PROPERTY_PREFIX}${property.id}`,
+      };
+
+      return [viewButton, investButton];
+    }),
     [{ text: '⬅️ Back to Menu', callback_data: ACTIONS.SHOW_MENU }],
   ];
 
@@ -597,6 +691,79 @@ async function sendSupportOptions(ctx: BotContext) {
   );
 }
 
+async function startInvestFlowForProperty(ctx: BotContext, propertyId: string) {
+  if (!ctx.session?.userId) {
+    await ctx.reply('❌ Please authenticate first using /start.');
+    return;
+  }
+
+  const cached = propertyCache.get(propertyId);
+  if (!cached) {
+    await ctx.reply('⚠️ I could not find that property. Please refresh the list.');
+    return;
+  }
+
+  ctx.session.flow = {
+    type: 'INVEST',
+    step: 'AMOUNT',
+    data: {
+      propertyId,
+      propertyName: cached.name,
+    },
+  };
+  if (ctx.session.chatId) persistSessionState(ctx.session.chatId, ctx.session);
+
+  await ctx.reply(
+    `💸 *${cached.name}*\nHow much would you like to invest?`,
+    {
+      parse_mode: 'Markdown',
+      reply_markup: buildInvestAmountKeyboard(propertyId, cached.name),
+    }
+  );
+}
+
+async function completeInvestment(ctx: BotContext, propertyId: string, amountUsd: number) {
+  if (!ctx.session?.userId) return;
+
+  const cached = propertyCache.get(propertyId);
+  if (!cached) {
+    await ctx.reply('⚠️ I could not find that property. Please refresh the list.');
+    return;
+  }
+
+  await ctx.reply(`⏳ Investing $${amountUsd.toFixed(2)} into ${cached.name}...`);
+
+  const result = await createInvestmentByTitle(cached.name, amountUsd, ctx.session.userId);
+
+  if (!result.success) {
+    await ctx.reply(`❌ Investment failed: ${result.error || 'Unknown error'}`, {
+      reply_markup: buildBackToMenuKeyboard(),
+    });
+    ctx.session.flow = undefined;
+    if (ctx.session.chatId) persistSessionState(ctx.session.chatId, ctx.session);
+    return;
+  }
+
+  const hashscanUrl = result.transactionId
+    ? `https://hashscan.io/testnet/transaction/${result.transactionId}`
+    : undefined;
+
+  let confirmation = `✅ *Investment submitted!*\n\n`;
+  confirmation += `• Property: ${cached.name}\n`;
+  confirmation += `• Amount: $${amountUsd.toFixed(2)}`;
+  if (hashscanUrl) {
+    confirmation += `\n\n🔗 [View on Hashscan](${hashscanUrl})`;
+  }
+
+  await ctx.reply(confirmation, {
+    parse_mode: 'Markdown',
+    reply_markup: buildBackToMenuKeyboard(),
+  });
+
+  ctx.session.flow = undefined;
+  if (ctx.session.chatId) persistSessionState(ctx.session.chatId, ctx.session);
+}
+
 // Initialize bot with custom options
 const bot = new Telegraf<BotContext>(config.telegram.token, {
   telegram: {
@@ -746,6 +913,22 @@ bot.action(ACTIONS.GET_SUPPORT, async (ctx) => {
   await sendSupportOptions(ctx);
 });
 
+bot.action(ACTIONS.ONBOARD_EXISTING, async (ctx) => {
+  await ctx.answerCbQuery().catch(() => undefined);
+  if (!ctx.session?.flow || ctx.session.flow.type !== 'ONBOARDING') return;
+  ctx.session.flow.step = 'EMAIL_EXISTING';
+  if (ctx.session.chatId) persistSessionState(ctx.session.chatId, ctx.session);
+  await ctx.reply('📧 Great! Please enter the email associated with your Homebaise account.');
+});
+
+bot.action(ACTIONS.ONBOARD_NEW, async (ctx) => {
+  await ctx.answerCbQuery().catch(() => undefined);
+  if (!ctx.session?.flow || ctx.session.flow.type !== 'ONBOARDING') return;
+  ctx.session.flow.step = 'EMAIL_NEW_OPTIONAL';
+  if (ctx.session.chatId) persistSessionState(ctx.session.chatId, ctx.session);
+  await ctx.reply('📧 Let’s create an account. Enter your email (or type “skip” to continue without one).');
+});
+
 bot.action(new RegExp(`^${ACTIONS.ALERT_TOGGLE_PREFIX}`), async (ctx) => {
   if (!(await ensureAuthenticatedForAction(ctx))) return;
   const callbackData =
@@ -760,6 +943,67 @@ bot.action(new RegExp(`^${ACTIONS.ALERT_TOGGLE_PREFIX}`), async (ctx) => {
   await toggleAlertPreference(ctx, key);
 });
 
+bot.action(new RegExp(`^${ACTIONS.INVEST_PROPERTY_PREFIX}`), async (ctx) => {
+  if (!(await ensureAuthenticatedForAction(ctx))) return;
+  await ctx.answerCbQuery().catch(() => undefined);
+
+  const callbackData =
+    ctx.callbackQuery && 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : undefined;
+  const propertyId = callbackData?.replace(ACTIONS.INVEST_PROPERTY_PREFIX, '');
+
+  if (!propertyId) {
+    await ctx.reply('⚠️ Unable to identify the property. Please try again.');
+    return;
+  }
+
+  const property = propertyCache.get(propertyId);
+
+  if (!property) {
+    await ctx.reply('❌ I could not find that property. Please refresh the list.');
+    return;
+  }
+
+  await startInvestFlowForProperty(ctx, propertyId);
+});
+
+bot.action(new RegExp(`^${ACTIONS.INVEST_QUICK_PREFIX}`), async (ctx) => {
+  if (!(await ensureAuthenticatedForAction(ctx))) return;
+  await ctx.answerCbQuery().catch(() => undefined);
+  const callbackData =
+    ctx.callbackQuery && 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : undefined;
+  const payload = callbackData?.replace(ACTIONS.INVEST_QUICK_PREFIX, '');
+  const [propertyId, amountStr] = (payload || '').split(':');
+  const amount = Number(amountStr);
+  if (!propertyId || !Number.isFinite(amount) || amount <= 0) {
+    await ctx.reply('⚠️ Invalid amount selected.');
+    return;
+  }
+  await completeInvestment(ctx, propertyId, amount);
+});
+
+bot.action(new RegExp(`^${ACTIONS.INVEST_CUSTOM}`), async (ctx) => {
+  if (!(await ensureAuthenticatedForAction(ctx))) return;
+  await ctx.answerCbQuery().catch(() => undefined);
+  const callbackData =
+    ctx.callbackQuery && 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : undefined;
+  const [, propertyId] = (callbackData || '').split(':');
+  if (!propertyId) {
+    await ctx.reply('⚠️ Could not determine the property. Please try again.');
+    return;
+  }
+  if (!ctx.session) ctx.session = {} as SessionState;
+  ctx.session.flow = {
+    type: 'INVEST',
+    step: 'CUSTOM_AMOUNT',
+    data: {
+      propertyId,
+      propertyName: propertyCache.get(propertyId)?.name || 'Selected Property',
+    },
+  };
+  if (ctx.session.chatId) persistSessionState(ctx.session.chatId, ctx.session);
+  await ctx.reply('✏️ Enter the amount in USD you would like to invest.');
+});
+
 bot.action(new RegExp(`^${ACTIONS.VIEW_PROPERTY_PREFIX}`), async (ctx) => {
   if (!(await ensureAuthenticatedForAction(ctx))) return;
   await ctx.answerCbQuery().catch(() => undefined);
@@ -767,8 +1011,27 @@ bot.action(new RegExp(`^${ACTIONS.VIEW_PROPERTY_PREFIX}`), async (ctx) => {
   const callbackData =
     ctx.callbackQuery && 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : undefined;
   const propertyId = callbackData?.replace(ACTIONS.VIEW_PROPERTY_PREFIX, '');
-  const properties = await getProperties(config.bot.serverToken || '');
-  const property = properties?.find((item) => String(item.id) === propertyId);
+
+  let property = propertyId ? propertyCache.get(propertyId) : undefined;
+
+  if (!property && propertyId) {
+    const properties = await getProperties(config.bot.serverToken || '');
+    const fallback = properties?.find((item) => String(item.id) === propertyId);
+    if (fallback) {
+      property = {
+        id: propertyId,
+        name: fallback.name || fallback.title || 'Unknown Property',
+        location: fallback.location || fallback.city || fallback.country || 'Unknown Location',
+        yieldRate: Number(fallback.yieldRate ?? fallback.expectedYield ?? 0),
+        fundedPercent: Number(fallback.fundedPercent ?? fallback.funded_percent ?? 0),
+        totalValue: Number(fallback.totalValue ?? fallback.targetAmount ?? fallback.price ?? 0),
+        url: fallback.slug
+          ? `https://homebaise.vercel.app/properties/${fallback.slug}`
+          : `https://homebaise.vercel.app/properties/${fallback.id}`,
+      };
+      propertyCache.set(propertyId, property);
+    }
+  }
 
   if (!property) {
     await ctx.reply('❌ I could not load that property. Please try again later.', {
@@ -777,28 +1040,53 @@ bot.action(new RegExp(`^${ACTIONS.VIEW_PROPERTY_PREFIX}`), async (ctx) => {
     return;
   }
 
+  const valueLabel = property.totalValue > 0 ? `$${property.totalValue.toLocaleString()}` : 'N/A';
+
   const message =
     `🏠 *${property.name}*\n` +
     `${property.location}\n\n` +
-    `• Value: $${property.totalValue.toLocaleString()}\n` +
+    `• Value: ${valueLabel}\n` +
     `• Yield: ${property.yieldRate}%\n` +
     `• Funded: ${property.fundedPercent}%\n\n` +
-    `_Tap "Invest" in the web app to participate._`;
+    `_Tap "Invest" below to participate from Telegram or open the property in the web app._`;
+
+  const inline_keyboard = [
+    [
+      property.url
+        ? { text: '🌐 Open in Web', url: property.url }
+        : { text: '🌐 Open in Web', url: 'https://homebaise.vercel.app/properties' },
+      { text: '💸 Invest Now', callback_data: `${ACTIONS.INVEST_PROPERTY_PREFIX}${property.id}` },
+    ],
+    [{ text: '⬅️ Back to Menu', callback_data: ACTIONS.SHOW_MENU }],
+  ];
 
   await ctx.reply(message, {
     parse_mode: 'Markdown',
-    reply_markup: {
-      inline_keyboard: [
-        [
-          {
-            text: '🌐 Open in Web',
-            url: `https://homebaise.vercel.app/properties/${property.id}`,
-          },
-        ],
-        [{ text: '⬅️ Back to Menu', callback_data: ACTIONS.SHOW_MENU }],
-      ],
-    },
+    reply_markup: { inline_keyboard },
   });
+});
+
+bot.action(new RegExp(`^${ACTIONS.INVEST_PROPERTY_PREFIX}`), async (ctx) => {
+  if (!(await ensureAuthenticatedForAction(ctx))) return;
+  await ctx.answerCbQuery().catch(() => undefined);
+
+  const callbackData =
+    ctx.callbackQuery && 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : undefined;
+  const propertyId = callbackData?.replace(ACTIONS.INVEST_PROPERTY_PREFIX, '');
+
+  if (!propertyId) {
+    await ctx.reply('⚠️ Unable to identify the property. Please try again.');
+    return;
+  }
+
+  const property = propertyCache.get(propertyId);
+
+  if (!property) {
+    await ctx.reply('❌ I could not find that property. Please refresh the list.');
+    return;
+  }
+
+  await startInvestFlowForProperty(ctx, propertyId);
 });
 
 // Handle contact/phone number
@@ -815,62 +1103,60 @@ bot.on('contact', async (ctx: BotContext) => {
   const normalizedPhone = normalizePhoneNumber(phoneNumber);
   const user = await getUserByPhone(phoneNumber);
 
-  if (!user) {
-    await ctx.reply(
-      `👋 I couldn't find an existing Homebaise account for *${normalizedPhone}*.\n\n` +
-        `Let's create one real quick!\n\n` +
-        `Please reply with your email address so I can set up your profile.`,
-      { parse_mode: 'Markdown' }
-    );
-
-    ctx.session = {
-      ...ctx.session,
-      authenticated: false,
-      awaitingEmail: true,
-      awaitingOTP: false,
-      pendingPhone: normalizedPhone,
-      userId: undefined,
-      phoneNumber: undefined,
-      flow: undefined,
-    };
-    persistSessionState(chatId, ctx.session!);
-    return;
-  }
-
   ctx.session = {
-    ...ctx.session,
-    userId: user.id,
-    phoneNumber: normalizedPhone,
-    authenticated: false,
-    awaitingEmail: false,
+    ...(ctx.session || {}),
+    chatId,
+    pendingPhone: normalizedPhone,
     flow: undefined,
   };
-  persistSessionState(chatId, ctx.session!);
 
-  const accountId = await ensureHederaAccountForUser(user.id);
-  if (!accountId) {
+  if (!user) {
     await ctx.reply(
-      '⚠️ I could not automatically link a Hedera wallet. You can do this later from the Homebaise web app.'
+      `👋 I couldn't find an existing Homebaise account for *${normalizedPhone}*.`,
+      { parse_mode: 'Markdown' }
     );
+    await ctx.reply('Do you already have an account?', {
+      reply_markup: buildOnboardingChoiceKeyboard(),
+    });
+
+    ctx.session.flow = {
+      type: 'ONBOARDING',
+      step: 'CHOICE',
+      data: { phone: normalizedPhone },
+    };
+    ctx.session.awaitingEmail = false;
+    ctx.session.awaitingOTP = false;
+    ctx.session.authenticated = false;
+    ctx.session.userId = undefined;
+    ctx.session.phoneNumber = undefined;
+    persistSessionState(chatId, ctx.session);
+    return;
   }
 
   const otp = await createOTP(normalizedPhone, 'telegram', chatId);
 
+  ctx.session.userId = user.id;
+  ctx.session.phoneNumber = normalizedPhone;
+  ctx.session.authenticated = false;
+  ctx.session.awaitingOTP = true;
+  ctx.session.awaitingEmail = false;
+  ctx.session.flow = undefined;
+  persistSessionState(chatId, ctx.session);
+
+  await removeCustomKeyboard(ctx);
+
   await ctx.reply(
-    `✅ Account found!\n\n` +
-      `Welcome ${user.full_name || user.email || 'User'}!\n\n` +
-      `Your OTP is: *${otp}*\n\n` +
-      `⚠️ This is for testing only. In production, OTP will be sent via SMS.\n\n` +
-      `Please enter this code to verify:`,
+    `✅ Account found!
+
+Welcome ${user.full_name || user.email || 'Homebaise investor'}!
+
+Your OTP is: *${otp}*
+
+⚠️ This is for testing only. In production, OTP will be sent via SMS.
+
+Please enter this code to verify.`,
     { parse_mode: 'Markdown' }
   );
-
-  ctx.session = {
-    ...ctx.session,
-    awaitingOTP: true,
-    authenticated: false,
-  };
-  persistSessionState(chatId, ctx.session!);
 });
 
 // Handle text input (auth flows, NL commands, conversational flows)
@@ -883,50 +1169,102 @@ bot.on('text', async (ctx: BotContext) => {
   const chatId = String(ctx.chat?.id);
   const isAuthed = !!ctx.session?.authenticated && !!ctx.session?.userId;
 
-  if (ctx.session.awaitingEmail && ctx.session.pendingPhone) {
-    const emailCandidate = text;
+  const activeFlow = ctx.session.flow;
 
-    if (!isValidEmail(emailCandidate)) {
-      await ctx.reply('❌ That doesn’t look like a valid email. Please send a valid address like `name@example.com`.', {
-        parse_mode: 'Markdown',
-      });
+  if (activeFlow?.type === 'ONBOARDING') {
+    if (activeFlow.step === 'EMAIL_EXISTING') {
+      if (!isValidEmail(text)) {
+        await ctx.reply('❌ That doesn’t look like a valid email. Please enter the email linked to your Homebaise account.');
+        return;
+      }
+
+      const userRecord = await getUserByEmail(text);
+      if (!userRecord) {
+        await ctx.reply('❌ No Homebaise account found with that email. Double-check and try again, or choose “Create a new account”.');
+        return;
+      }
+
+      const phone = activeFlow.data.phone;
+      await updateUserPhone(userRecord.id, phone);
+      const otp = await createOTP(phone, 'telegram', chatId);
+
+      ctx.session.userId = userRecord.id;
+      ctx.session.phoneNumber = phone;
+      ctx.session.awaitingOTP = true;
+      ctx.session.awaitingEmail = false;
+      ctx.session.authenticated = false;
+      ctx.session.flow = undefined;
+      persistSessionState(chatId, ctx.session);
+
+      await removeCustomKeyboard(ctx);
+      await ctx.reply(
+        `✅ Email confirmed!
+
+Your OTP is: *${otp}*
+
+⚠️ This is for testing purposes only. Please enter this code to verify your account.`,
+        { parse_mode: 'Markdown' }
+      );
       return;
     }
 
-    await ctx.reply('⏳ Creating your Homebaise account...');
+    if (activeFlow.step === 'EMAIL_NEW_OPTIONAL') {
+      const shouldSkip = text.toLowerCase() === 'skip';
+      if (!shouldSkip && text && !isValidEmail(text)) {
+        await ctx.reply('❌ That doesn’t look like a valid email. Enter a proper email or type “skip” to continue without one.');
+        return;
+      }
 
-    try {
-      const createdUser = await createUserWithPhoneAndEmail(
-        ctx.session.pendingPhone,
-        emailCandidate,
-        ctx.from?.first_name || ctx.from?.username || undefined
-      );
+      await ctx.reply('⏳ Creating your Homebaise account...');
+      try {
+        const createdUser = await createUserWithPhoneAndEmail(
+          activeFlow.data.phone,
+          shouldSkip ? '' : text,
+          ctx.from?.first_name || ctx.from?.username || undefined
+        );
 
-      await ensureHederaAccountForUser(createdUser.id);
+        const otp = await createOTP(activeFlow.data.phone, 'telegram', chatId);
 
-      const otp = await createOTP(ctx.session.pendingPhone, 'telegram', chatId);
+        ctx.session.userId = createdUser.id;
+        ctx.session.phoneNumber = activeFlow.data.phone;
+        ctx.session.awaitingOTP = true;
+        ctx.session.awaitingEmail = false;
+        ctx.session.authenticated = false;
+        ctx.session.flow = undefined;
+        persistSessionState(chatId, ctx.session);
 
-      await ctx.reply(
-        `✅ Account created!\n\n` +
-          `Your OTP is: *${otp}*\n\n` +
-          `⚠️ For testing purposes only — please enter this code here to verify.`,
-        { parse_mode: 'Markdown' }
-      );
+        await removeCustomKeyboard(ctx);
+        await ctx.reply(
+          `✅ Account created!
 
-      ctx.session.userId = createdUser.id;
-      ctx.session.phoneNumber = ctx.session.pendingPhone;
-      ctx.session.authenticated = false;
-      ctx.session.awaitingEmail = false;
-      ctx.session.awaitingOTP = true;
-      ctx.session.flow = undefined;
-      persistSessionState(chatId, ctx.session);
-    } catch (error) {
-      console.error('Failed to create user from email flow:', error);
-      await ctx.reply(
-        `❌ I ran into an issue setting up your account. Please try again or contact support if it persists.`
-      );
+Your OTP is: *${otp}*
+
+⚠️ This is for testing only. Please enter this code to verify and start investing.`,
+          { parse_mode: 'Markdown' }
+        );
+      } catch (error) {
+        console.error('Failed to create user from onboarding flow:', error);
+        await ctx.reply('❌ I ran into an issue setting up your account. Please try again or contact support.');
+      }
+      return;
     }
+  }
 
+  if (activeFlow?.type === 'INVEST') {
+    if (activeFlow.step === 'CUSTOM_AMOUNT') {
+      const normalized = text.replace(/[^\d.,]/g, '').replace(',', '.');
+      const amount = Number(normalized);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        await ctx.reply('❌ Please enter a valid USD amount (e.g. 25 or 100).');
+        return;
+      }
+      await completeInvestment(ctx, activeFlow.data.propertyId, amount);
+    }
+    return;
+  }
+
+  if (activeFlow?.type === 'TRANSFER') {
+    await handleTransferFlowInput(ctx, text);
     return;
   }
 
@@ -937,50 +1275,33 @@ bot.on('text', async (ctx: BotContext) => {
     console.log(`🔐 OTP verification result:`, result);
 
     if (result.success && result.userId) {
-      await ensureHederaAccountForUser(result.userId);
+      await finalizeAuthentication(
+        ctx,
+        result.userId,
+        result.phoneNumber,
+        `✅ *Authentication successful!*\n\nWelcome to Homebaise 🎉\nChoose what you'd like to do next.`
+      );
 
-      const session = await createBotSession(result.userId, 'telegram', chatId);
+      await logNotification(
+        result.userId,
+        'telegram',
+        chatId,
+        'auth',
+        'Welcome to Homebaise',
+        'User successfully authenticated'
+      );
 
-      if (session) {
-        ctx.session.userId = result.userId;
-        ctx.session.phoneNumber = result.phoneNumber;
-        ctx.session.authenticated = true;
-        ctx.session.awaitingOTP = false;
-        ctx.session.awaitingEmail = false;
-        ctx.session.flow = undefined;
-        persistSessionState(chatId, ctx.session);
-
-        await sendMainMenu(
-          ctx,
-          `✅ *Authentication successful!*\n\nWelcome to Homebaise 🎉\nChoose what you'd like to do next.`
-        );
-
-        await logNotification(
-          result.userId,
-          'telegram',
-          chatId,
-          'auth',
-          'Welcome to Homebaise',
-          'User successfully authenticated'
-        );
-
-        return;
-      }
+      return;
     } else {
       await ctx.reply(`❌ Invalid or expired OTP. Please try again with /start`);
     }
     return;
   }
 
-  if (ctx.session.flow?.type === 'TRANSFER') {
-    await handleTransferFlowInput(ctx, text);
-    return;
-  }
-
   if (isAuthed) {
     const investMatch = text.match(/invest\s+\$?([\d_,\.]+)\s*(?:usd|dollars)?\s*(?:in|into|on)\s+(.+)/i);
     if (investMatch) {
-      const rawAmount = investMatch[1].replace(/[, _]/g, '');
+      const rawAmount = investMatch[1].replace(/[,_]/g, '');
       const amount = Number(rawAmount);
       const titleQuery = investMatch[2].trim();
 
@@ -991,7 +1312,6 @@ bot.on('text', async (ctx: BotContext) => {
 
       await ctx.reply(`⏳ Processing investment of $${amount.toFixed(2)} in "${titleQuery}" ...`);
 
-      const { createInvestmentByTitle } = await import('../shared/api');
       const result = await createInvestmentByTitle(titleQuery, amount, ctx.session?.userId);
       if (!result.success) {
         await ctx.reply(`❌ Investment failed: ${result.error || 'Unknown error'}`);
@@ -1001,9 +1321,13 @@ bot.on('text', async (ctx: BotContext) => {
       const txId = result.transactionId || '';
       const hashscanUrl = txId ? `https://hashscan.io/testnet/transaction/${txId}` : '';
 
-      let confirmation =
-        `✅ Investment submitted!\n\n` + `Title: ${titleQuery}\n` + `Amount: $${amount.toFixed(2)}`;
-      if (hashscanUrl) confirmation += `\n\n🔗 Hashscan: ${hashscanUrl}`;
+      let confirmation = `✅ Investment submitted!
+
+` + `Title: ${titleQuery}
+` + `Amount: $${amount.toFixed(2)}`;
+      if (hashscanUrl) confirmation += `
+
+🔗 Hashscan: ${hashscanUrl}`;
       await ctx.reply(confirmation, { parse_mode: 'Markdown' });
       return;
     }
@@ -1017,42 +1341,45 @@ bot.on('text', async (ctx: BotContext) => {
 
     if (!user) {
       await ctx.reply(
-        `👋 I couldn't find an existing Homebaise account for *${normalizedPhone}*.\n\n` +
-          `Please reply with your email address so I can create one for you.`,
+        `👋 I couldn't find an existing Homebaise account for *${normalizedPhone}*.
+
+Please reply with your email address or type "skip" to create a new account without email.`,
         { parse_mode: 'Markdown' }
       );
 
-      ctx.session.authenticated = false;
-      ctx.session.awaitingEmail = true;
+      ctx.session.flow = {
+        type: 'ONBOARDING',
+        step: 'EMAIL_NEW_OPTIONAL',
+        data: { phone: normalizedPhone },
+      };
       ctx.session.awaitingOTP = false;
-      ctx.session.pendingPhone = normalizedPhone;
+      ctx.session.authenticated = false;
       ctx.session.userId = undefined;
       ctx.session.phoneNumber = undefined;
-      ctx.session.flow = undefined;
       persistSessionState(chatId, ctx.session);
       return;
     }
 
-    await ensureHederaAccountForUser(user.id);
-
     const otp = await createOTP(normalizedPhone, 'telegram', chatId);
-
-    await ctx.reply(
-      `✅ Account found!\n\n` +
-        `Welcome ${user.full_name || user.email || 'User'}!\n\n` +
-        `Your OTP is: *${otp}*\n\n` +
-        `⚠️ This is for testing only. In production, OTP will be sent via SMS.\n\n` +
-        `Please enter this code to verify:`,
-      { parse_mode: 'Markdown' }
-    );
 
     ctx.session.userId = user.id;
     ctx.session.phoneNumber = normalizedPhone;
     ctx.session.awaitingOTP = true;
     ctx.session.authenticated = false;
-    ctx.session.awaitingEmail = false;
     ctx.session.flow = undefined;
     persistSessionState(chatId, ctx.session);
+
+    await removeCustomKeyboard(ctx);
+    await ctx.reply(
+      `✅ Account found!
+
+Welcome ${user.full_name || user.email || 'User'}!
+
+Your OTP is: *${otp}*
+
+⚠️ This is for testing only. Please enter this code to verify.`,
+      { parse_mode: 'Markdown' }
+    );
     return;
   }
 

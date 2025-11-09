@@ -1,6 +1,4 @@
 import { BotContext } from '../bot';
-import { getUserByPhone } from '../../shared/database';
-import { createOTP } from '../../shared/auth';
 import { buildMainMenuKeyboard } from '../ui';
 
 export async function handleStart(ctx: BotContext) {
@@ -20,27 +18,30 @@ export async function handleStart(ctx: BotContext) {
     return;
   }
   
-  // Request phone number
+  const intro =
+    `👋 *Welcome to Homebaise*, ${firstName}!
+ 
+ • Discover tokenized properties
+ • Track your earnings in real time
+ • Manage investments directly in Telegram`;
+ 
+  await ctx.reply(intro, {
+    parse_mode: 'Markdown',
+    reply_markup: buildMainMenuKeyboard(),
+  });
+ 
   await ctx.reply(
-    `👋 Welcome to Homebaise, ${firstName}!\n\n` +
-    `To get started, I need to verify your account.\n\n` +
-    `Please send me your phone number (with country code)\n` +
-    `Example: +2348012345678\n\n` +
-    `You can either:\n` +
-    `• Use the button below to share your contact\n` +
-    `• Or type your phone number directly`,
+    `To link your Homebaise account, share the phone number you registered with (including country code).`,
     {
       parse_mode: 'Markdown',
       reply_markup: {
-        keyboard: [
-          [{ text: '📱 Share Phone Number', request_contact: true }]
-        ],
+        keyboard: [[{ text: '📱 Share Phone Number', request_contact: true }]],
         resize_keyboard: true,
         one_time_keyboard: true,
       },
     }
   );
   
-  // Handle phone number response in bot.ts via contact handler
+  // Phone number processing continues in the main bot handler
 }
 

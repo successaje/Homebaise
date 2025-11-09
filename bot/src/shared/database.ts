@@ -166,34 +166,51 @@ export async function getUserByPhone(phoneNumber: string): Promise<{ id: string;
   }
 }
 
-export interface BasicUserProfile {
-  id: string;
-  email?: string | null;
-  full_name?: string | null;
-  phone_number?: string | null;
-  hedera_account_id?: string | null;
-  hedera_private_key?: string | null;
-  wallet_address?: string | null;
-}
+export async function getUserByEmail(email: string): Promise<{ id: string; email?: string; full_name?: string; phone_number?: string } | null> {
+  const normalizedEmail = email.trim().toLowerCase();
 
-export async function getUserProfile(userId: string): Promise<BasicUserProfile | null> {
   try {
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, email, full_name, phone_number, hedera_account_id, hedera_private_key, wallet_address')
-      .eq('id', userId)
+      .select('id, email, full_name, phone_number')
+      .eq('email', normalizedEmail)
       .maybeSingle();
 
     if (error) {
-      console.error('Failed to fetch user profile:', error);
+      console.error('❌ Email lookup failed:', error);
       return null;
     }
 
-    return data as BasicUserProfile | null;
+    return data as { id: string; email?: string; full_name?: string; phone_number?: string } | null;
   } catch (error) {
-    console.error('Unexpected error fetching user profile:', error);
+    console.error('❌ Email lookup exception:', error);
     return null;
   }
+}
+
+export async function updateUserPhone(userId: string, phoneNumber: string): Promise<boolean> {
+  try {
+    const normalizedPhone = normalizePhoneNumber(phoneNumber);
+    const { error } = await supabase
+      .from('profiles')
+      .update({ phone_number: normalizedPhone, updated_at: new Date().toISOString() })
+      .eq('id', userId);
+
+    if (error) {
+      console.error('Failed to update phone number:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Failed to update phone number:', error);
+    return false;
+  }
+}
+
+function generatePlaceholderEmail(phoneNumber: string): string {
+  const sanitized = normalizePhoneNumber(phoneNumber).replace(/[^\d]/g, '');
+  return `user-${sanitized || randomUUID()}@homebaise.bot`;
 }
 
 export async function createUserWithPhoneAndEmail(
@@ -202,12 +219,14 @@ export async function createUserWithPhoneAndEmail(
   fullName?: string
 ): Promise<{ id: string; email?: string; full_name?: string; phone_number?: string }> {
   const normalizedPhone = normalizePhoneNumber(phoneNumber);
-  const derivedName = fullName || email.split('@')[0]?.replace(/[\.\-_]/g, ' ');
+  const normalizedEmail = email?.trim().toLowerCase();
+  const effectiveEmail = normalizedEmail && normalizedEmail.includes('@') ? normalizedEmail : generatePlaceholderEmail(phoneNumber);
+  const derivedName = fullName || (normalizedEmail ? normalizedEmail.split('@')[0]?.replace(/[\._-]/g, ' ') : undefined) || 'Homebaise User';
 
   try {
     const { data, error } = await supabase.auth.admin.createUser({
-      email,
-      email_confirm: true,
+      email: effectiveEmail,
+      email_confirm: Boolean(normalizedEmail && normalizedEmail.includes('@')),
       phone: normalizedPhone,
       phone_confirm: true,
       password: randomUUID(),
@@ -223,7 +242,7 @@ export async function createUserWithPhoneAndEmail(
 
     const profilePayload = {
       id: data.user.id,
-      email,
+      email: effectiveEmail,
       full_name: data.user.user_metadata?.full_name || derivedName,
       phone_number: normalizedPhone,
       provider: 'telegram',
@@ -473,5 +492,36 @@ export async function logNotification(
       metadata: metadata || {},
       status: 'sent'
     });
+}
+
+export interface BasicProfile {
+  id: string;
+  email?: string | null;
+  full_name?: string | null;
+  phone_number?: string | null;
+  role?: string | null;
+  kyc_status?: string | null;
+  hedera_account_id?: string | null;
+  wallet_address?: string | null;
+}
+
+export async function getUserProfile(userId: string): Promise<BasicProfile | null> {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, email, full_name, phone_number, role, kyc_status, hedera_account_id, wallet_address')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Failed to fetch user profile:', error);
+      return null;
+    }
+
+    return data as BasicProfile | null;
+  } catch (error) {
+    console.error('Unexpected error fetching user profile:', error);
+    return null;
+  }
 }
 

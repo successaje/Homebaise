@@ -28,16 +28,25 @@ export async function handleBrowse(ctx: BotContext) {
   let message = `🏠 *Available Properties*\n\n`;
   
   properties.slice(0, 10).forEach((property, index) => {
-    message += `${index + 1}. *${property.name}*\n`;
-    message += `   📍 ${property.location}\n`;
-    message += `   💵 Value: $${property.totalValue.toLocaleString()}\n`;
-    message += `   📊 Funding: ${property.fundedPercent}%\n`;
-    message += `   📈 Yield: ${property.yieldRate}%\n`;
-    message += `   💰 Available: $${property.availableFunding.toLocaleString()}\n\n`;
+    const name = property.name || property.title || 'Unknown Property';
+    const location = property.location || property.city || property.country || 'Unknown Location';
+    const value = Number(property.totalValue ?? property.price ?? property.targetAmount ?? 0);
+    const funded = Number(property.fundedPercent ?? property.funded_percent ?? 0);
+    const yieldRate = Number(property.yieldRate ?? property.expectedYield ?? 0);
+    const available = Number(property.availableFunding ?? 0);
+  
+    message += `${index + 1}. *${name}*\n`;
+    message += `   📍 ${location}\n`;
+    message += `   💵 Value: $${value > 0 ? value.toLocaleString() : 'N/A'}\n`;
+    message += `   📊 Funding: ${funded}%\n`;
+    message += `   📈 Yield: ${yieldRate}%\n`;
+    if (available > 0) {
+      message += `   💰 Available: $${available.toLocaleString()}\n`;
+    }
+    message += `\n`;
   });
   
-  message += `_Use /invest [property_id] [amount] to invest_\n`;
-  message += `_Example: /invest 123 100_`;
+  message += `_Tip: Use the inline buttons or quick commands to invest without leaving Telegram._`;
   
   await ctx.reply(message, { parse_mode: 'Markdown' });
   
