@@ -459,6 +459,17 @@ Details will be added after mainnet deployment.
 - [Hedera Mirror Node API](https://docs.hedera.com/hedera/api/mirror-node-api)
 - [Next.js Documentation](https://nextjs.org/docs)
 
+### Telegram Bot Architecture (Updated)
+
+- **Onboarding pipeline**: `/start` collects the user’s phone number, branches into *existing account* (email lookup + phone sync) or *new account* (optional email), then issues OTP via Supabase and stores the session in `bot_sessions`.
+- **Exploration menus**: Inline keyboards expose curated *property*, *agriculture*, and *community* listings seeded from `bot/src/data/listings.ts`; each card caches metadata for quick investing.
+- **Investment execution**: Primary path hits `/api/bot/invest` with `X-Bot-Token`; if the endpoint isn’t deployed the bot falls back to a simulated transaction ID (`SIM-*`) so conversational flows remain demo-friendly. Successful investments are logged in-memory for the “My Investments” tracker.
+- **Portfolio APIs**: `/api/bot/portfolio` returns the aggregated Supabase view using the service-role key, allowing the bot to surface totals and holdings without user cookies.
+- **Listing creation**: Telegram users can create property/agriculture/community listings via a multi-step flow. Listings are cached in-memory and merged with curated data for quick iteration during demos.
+- **Marketplace & token desk**: Secondary market, primary issues, and token pairs are exposed through static datasets and rendered via inline keyboards for real-time context.
+- **Developer following**: Users can follow/unfollow developer profiles; the bot persists selections in-memory and updates inline buttons statefully.
+- **Notification controls**: `get_or_create_notification_preferences` RPC keeps alert switches in sync, while `/notify` webhooks bridge the Next.js app to the running bot process.
+
 ### Live Demo
 
 - 🤖 **Telegram Bot**: [Try @homebaise_bot](https://t.me/homebaise_bot) - Invest via natural language

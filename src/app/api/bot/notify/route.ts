@@ -48,31 +48,37 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // TODO: Create bot_notifications table in database
-    // For now, skip notification logging
-    const notification: { id: string } | null = null;
-    const logError = null;
+    const botWebhookUrl = process.env.BOT_NOTIFY_WEBHOOK_URL;
+    const botServerToken = process.env.BOT_SERVER_TOKEN;
 
-    if (logError) {
-      return NextResponse.json(
-        { error: 'Failed to log notification' },
-        { status: 500 }
-      );
+    if (botWebhookUrl && botServerToken) {
+      try {
+        const response = await fetch(botWebhookUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Bot-Token': botServerToken,
+          },
+          body: JSON.stringify({
+            userId,
+            title,
+            message,
+            metadata,
+            messageType,
+          }),
+        });
+
+        if (!response.ok) {
+          console.error('Bot notify webhook responded with', response.status, await response.text());
+        }
+      } catch (error) {
+        console.error('Failed to call bot notify webhook:', error);
+      }
     }
-
-    // In a real implementation, you would send the message to the bot platform here
-    // For Telegram, you'd use the Telegram Bot API
-    // For WhatsApp, you'd use the WhatsApp Business API
-
-    // TODO: Update notification status when bot_notifications table is created
-    // await supabase
-    //   .from('bot_notifications')
-    //   .update({ status: 'sent' })
-    //   .eq('id', notification.id);
 
     return NextResponse.json({
       success: true,
-      notificationId: 'mock-id'
+      deliveredToBot: Boolean(botWebhookUrl && botServerToken),
     });
 
   } catch (error) {

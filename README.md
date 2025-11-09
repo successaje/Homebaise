@@ -162,11 +162,12 @@ Judges or reviewers can request access here:
 
 Our Telegram bot makes it easy to manage your Homebaise portfolio without opening the web app:
 
-- **Getting started:** Tap `Start` in [@homebaise_bot](https://t.me/homebaise_bot), share your phone number, and confirm the OTP we send to link your account.
-- **Portfolio commands:** `/portfolio` shows holdings, `/balance` checks your HBAR wallet, `/browse` lists investable properties, and `/invest <property_id> <amount>` submits an investment.
-- **Help on demand:** Use `/help` anytime for a full menu of available commands.
-- **Real-time notifications:** Receive alerts for investment confirmations, yield payouts, property milestones, and new listings—respecting your in-app notification preferences.
-- **Roadmap:** WhatsApp support, natural language queries, and voice interactions are planned next.
+- **Guided onboarding:** Share your phone number, choose whether you already have an account or want to create one, and verify with OTP in-chat. Existing users can link by email; new users can provide an optional email on the fly.
+- **Interactive dashboard:** The in-bot menu covers balance checks, recent activity, notification preferences, marketplace movements, and token desk stats in a few taps.
+- **Investment exploration:** Browse curated property, agricultural, and community listings, complete with instant “Invest” buttons, detailed views, and quick-amount shortcuts.
+- **Create & publish listings:** Community members can draft new opportunities (property, farm, community) directly in Telegram—perfect for hackathon demos and rapid prototyping.
+- **Marketplace & trading desk:** Review primary/secondary listings, monitor token pairs, and stay ahead of price movements without leaving the conversation.
+- **Relationship tools:** Follow developers, track your personal investments, and receive inline notifications for yields, milestones, and funding progress.
 
 You can explore every bot feature with live data using the same credentials as the web platform.
 
