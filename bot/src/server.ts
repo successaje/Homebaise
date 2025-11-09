@@ -24,16 +24,18 @@ console.log('✅ Bot services initialized');
 
 // Create HTTP server for Render health checks and to keep process alive
 const server = http.createServer((req, res) => {
-  if (req.method === 'GET' && (req.url === '/health' || req.url === '/')) {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(
-      JSON.stringify({
-        status: 'ok',
-        service: 'homebaise-bot',
-        uptime: process.uptime(),
-      })
-    );
-    return;
+  if (req.method === 'GET' || req.method === 'HEAD') {
+    if (req.url === '/health' || req.url === '/') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          status: 'ok',
+          service: 'homebaise-bot',
+          uptime: process.uptime(),
+        })
+      );
+      return;
+    }
   }
 
   if (req.method === 'POST' && req.url === '/notify') {
