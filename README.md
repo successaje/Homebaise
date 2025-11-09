@@ -173,6 +173,27 @@ You can explore every bot feature with live data using the same credentials as t
 
 ---
 
+### Live Hedera Treasury Accounts & Tokens
+
+Real testnet accounts powering Homebaise properties (open in Hashscan for on-chain details):
+
+- `0.0.7161917` (Property `4595715a-5347-49e7-83be-103e28b31a05`) — Token `0.0.7161922` *(FUNGIBLE, balance ≈ 11,999,985)*  
+  [Account](https://hashscan.io/testnet/account/0.0.7161917) • [Token](https://hashscan.io/testnet/token/0.0.7161922)
+- `0.0.6752493` (Property `23eea399-2baf-4521-b58c-c28be620d0b5`) — Token `0.0.6752494` *(FUNGIBLE, balance ≈ 2,999,990)*  
+  [Account](https://hashscan.io/testnet/account/0.0.6752493) • [Token](https://hashscan.io/testnet/token/0.0.6752494)
+- `0.0.7159706` (Property `a0b274d5-27e9-42f6-a505-6d1a28bfb976`) — Token `0.0.7159708` *(FUNGIBLE, balance ≈ 419,950)*  
+  [Account](https://hashscan.io/testnet/account/0.0.7159706) • [Token](https://hashscan.io/testnet/token/0.0.7159708)
+- `0.0.7162090` (Property `05d4a6af-0f92-4453-ab5e-0eabeac48700`) — Token `0.0.7162093` *(FUNGIBLE, balance ≈ 3,799,950)*  
+  [Account](https://hashscan.io/testnet/account/0.0.7162090) • [Token](https://hashscan.io/testnet/token/0.0.7162093)
+- `0.0.7159657` (Property `1aab2fbb-94b3-45f5-a056-f08390cbf793`) — Token `0.0.7159659` *(FUNGIBLE, balance ≈ 7,499,970)*  
+  [Account](https://hashscan.io/testnet/account/0.0.7159657) • [Token](https://hashscan.io/testnet/token/0.0.7159659)
+- `0.0.6753839` (Property `7cd1a7b6-69a3-47d2-aab8-d6690b230ef1`) — Token `0.0.6753840` *(FUNGIBLE, balance ≈ 4,999,990)*  
+  [Account](https://hashscan.io/testnet/account/0.0.6753839) • [Token](https://hashscan.io/testnet/token/0.0.6753840)
+- `0.0.6754817` (Property `cfe8a139-3361-4b39-825d-bb624d7a5a86`) — Token `0.0.6754818` *(FUNGIBLE, balance ≈ 4,000,000)*  
+  [Account](https://hashscan.io/testnet/account/0.0.6754817) • [Token](https://hashscan.io/testnet/token/0.0.6754818)
+
+---
+
 ## 📖 Documentation
 
 - [Technical Documentation](TECHNICAL_DOCUMENTATION.md) - Hedera integration, architecture, deployment
