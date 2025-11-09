@@ -22,7 +22,6 @@ import {
   getUserByEmail,
   updateUserPhone,
 } from '../shared/database';
-import { createOTP, verifyOTP } from '../shared/auth';
 import {
   getUserPortfolio,
   getWalletBalance,
@@ -250,11 +249,15 @@ async function sendMainMenu(ctx: BotContext, message?: string) {
 }
 
 async function removeCustomKeyboard(ctx: BotContext) {
-  await ctx.reply(' ', {
-    reply_markup: {
-      remove_keyboard: true,
-    },
-  }).catch(() => undefined);
+  try {
+    await ctx.reply('\u200B', {
+      reply_markup: {
+        remove_keyboard: true,
+      },
+    });
+  } catch (error) {
+    console.warn('Failed to remove custom keyboard', error);
+  }
 }
 
 async function finalizeAuthentication(
@@ -286,11 +289,15 @@ async function finalizeAuthentication(
 
   await removeCustomKeyboard(ctx);
 
-  if (welcomeMessage) {
-    await ctx.reply(welcomeMessage, { parse_mode: 'Markdown' });
-  } else {
-    await ctx.reply('✅ Account linked! You’re ready to start investing.', { parse_mode: 'Markdown' });
-  }
+  await ctx.reply(
+    welcomeMessage ?? '✅ Account linked! You’re ready to start investing.',
+    {
+      parse_mode: 'Markdown',
+      reply_markup: {
+        remove_keyboard: true,
+      },
+    }
+  );
 
   if (!accountId) {
     await ctx.reply(
@@ -1075,9 +1082,9 @@ bot.use(async (ctx: BotContext, next) => {
   state.chatId = chatId;
 
   try {
-    const session = await getBotSession('telegram', chatId);
-
-    if (session) {
+  const session = await getBotSession('telegram', chatId);
+  
+  if (session) {
       state.userId = session.user_id;
       state.authenticated = true;
       state.awaitingOTP = false;
@@ -1130,7 +1137,7 @@ bot.command('help', async (ctx) => {
   if (ctx.session?.authenticated) {
     await sendMainMenu(ctx, '👇 Quick actions:');
   } else {
-    await ctx.reply(
+  await ctx.reply(
       '👋 Hi! Share your phone number via /start so I can link your Homebaise account.',
       { reply_markup: buildMainMenuKeyboard() }
     );
@@ -1542,12 +1549,12 @@ bot.on('contact', async (ctx: BotContext) => {
   if (!ctx.message || !('contact' in ctx.message)) return;
 
   requireSession(ctx);
-
+  
   const chatId = String(ctx.chat?.id);
   const phoneNumber = ctx.message.contact.phone_number;
-
+  
   console.log(`📱 Received contact from Telegram: ${phoneNumber}`);
-
+  
   const normalizedPhone = normalizePhoneNumber(phoneNumber);
   const user = await getUserByPhone(phoneNumber);
 
@@ -1557,7 +1564,7 @@ bot.on('contact', async (ctx: BotContext) => {
     pendingPhone: normalizedPhone,
     flow: undefined,
   };
-
+  
   if (!user) {
     await ctx.reply(
       `👋 I couldn't find an existing Homebaise account for *${normalizedPhone}*.`,
@@ -1580,37 +1587,23 @@ bot.on('contact', async (ctx: BotContext) => {
     persistSessionState(chatId, ctx.session);
     return;
   }
+  
+  await finalizeAuthentication(
+    ctx,
+    user.id,
+    normalizedPhone,
+    `✅ Account linked!
 
-  const otp = await createOTP(normalizedPhone, 'telegram', chatId);
+Welcome ${user.full_name || user.email || 'User'}!
 
-  ctx.session.userId = user.id;
-  ctx.session.phoneNumber = normalizedPhone;
-  ctx.session.authenticated = false;
-  ctx.session.awaitingOTP = true;
-  ctx.session.awaitingEmail = false;
-  ctx.session.flow = undefined;
-  persistSessionState(chatId, ctx.session);
-
-  await removeCustomKeyboard(ctx);
-
-  await ctx.reply(
-    `✅ Account found!
-
-Welcome ${user.full_name || user.email || 'Homebaise investor'}!
-
-Your OTP is: *${otp}*
-
-⚠️ This is for testing only. In production, OTP will be sent via SMS.
-
-Please enter this code to verify.`,
-    { parse_mode: 'Markdown' }
+You’re ready to explore Homebaise.`
   );
 });
 
 // Handle text input (auth flows, NL commands, conversational flows)
 bot.on('text', async (ctx: BotContext) => {
   if (!ctx.message || !('text' in ctx.message)) return;
-
+  
   requireSession(ctx);
 
   const text = ctx.message.text.trim();
@@ -1717,24 +1710,13 @@ bot.on('text', async (ctx: BotContext) => {
 
       const phone = activeFlow.data.phone;
       await updateUserPhone(userRecord.id, phone);
-      const otp = await createOTP(phone, 'telegram', chatId);
-
-      ctx.session.userId = userRecord.id;
-      ctx.session.phoneNumber = phone;
-      ctx.session.awaitingOTP = true;
-      ctx.session.awaitingEmail = false;
-      ctx.session.authenticated = false;
-      ctx.session.flow = undefined;
-      persistSessionState(chatId, ctx.session);
-
-      await removeCustomKeyboard(ctx);
-      await ctx.reply(
+      await finalizeAuthentication(
+        ctx,
+        userRecord.id,
+        phone,
         `✅ Email confirmed!
 
-Your OTP is: *${otp}*
-
-⚠️ This is for testing purposes only. Please enter this code to verify your account.`,
-        { parse_mode: 'Markdown' }
+Your Homebaise account is now linked.`
       );
       return;
     }
@@ -1754,24 +1736,13 @@ Your OTP is: *${otp}*
           ctx.from?.first_name || ctx.from?.username || undefined
         );
 
-        const otp = await createOTP(activeFlow.data.phone, 'telegram', chatId);
-
-        ctx.session.userId = createdUser.id;
-        ctx.session.phoneNumber = activeFlow.data.phone;
-        ctx.session.awaitingOTP = true;
-        ctx.session.awaitingEmail = false;
-        ctx.session.authenticated = false;
-        ctx.session.flow = undefined;
-        persistSessionState(chatId, ctx.session);
-
-        await removeCustomKeyboard(ctx);
-        await ctx.reply(
+        await finalizeAuthentication(
+          ctx,
+          createdUser.id,
+          activeFlow.data.phone,
           `✅ Account created!
 
-Your OTP is: *${otp}*
-
-⚠️ This is for testing only. Please enter this code to verify and start investing.`,
-          { parse_mode: 'Markdown' }
+Welcome to Homebaise — you’re all set to explore.`
         );
       } catch (error) {
         console.error('Failed to create user from onboarding flow:', error);
@@ -1832,21 +1803,21 @@ Your OTP is: *${otp}*
       return;
     }
   }
-
+  
   if (/^\+\d{10,15}$/.test(text) && !ctx.session.awaitingOTP) {
     console.log(`📱 Received phone number as text: ${text}`);
     const normalizedPhone = normalizePhoneNumber(text);
-
+    
     const user = await getUserByPhone(normalizedPhone);
-
+    
     if (!user) {
       await ctx.reply(
         `👋 I couldn't find an existing Homebaise account for *${normalizedPhone}*.
 
 Please reply with your email address or type "skip" to create a new account without email.`,
-        { parse_mode: 'Markdown' }
-      );
-
+      { parse_mode: 'Markdown' }
+    );
+    
       ctx.session.flow = {
         type: 'ONBOARDING',
         step: 'EMAIL_NEW_OPTIONAL',
@@ -1857,28 +1828,18 @@ Please reply with your email address or type "skip" to create a new account with
       ctx.session.userId = undefined;
       ctx.session.phoneNumber = undefined;
       persistSessionState(chatId, ctx.session);
-      return;
-    }
-
-    const otp = await createOTP(normalizedPhone, 'telegram', chatId);
-
-    ctx.session.userId = user.id;
-    ctx.session.phoneNumber = normalizedPhone;
-    ctx.session.awaitingOTP = true;
-    ctx.session.authenticated = false;
-    ctx.session.flow = undefined;
-    persistSessionState(chatId, ctx.session);
-
-    await removeCustomKeyboard(ctx);
-    await ctx.reply(
-      `✅ Account found!
+    return;
+  }
+  
+    await finalizeAuthentication(
+      ctx,
+      user.id,
+      normalizedPhone,
+      `✅ Account linked!
 
 Welcome ${user.full_name || user.email || 'User'}!
 
-Your OTP is: *${otp}*
-
-⚠️ This is for testing only. Please enter this code to verify.`,
-      { parse_mode: 'Markdown' }
+You’re ready to explore Homebaise.`
     );
     return;
   }
@@ -1887,7 +1848,7 @@ Your OTP is: *${otp}*
     await ctx.reply('💡 Use the quick action buttons below to continue.', {
       reply_markup: buildMainMenuKeyboard(),
     });
-  } else {
+    } else {
     await ctx.reply('ℹ️ Please send /start and share your contact so I can verify your account.');
   }
 });
@@ -1914,16 +1875,16 @@ bot.use((ctx, next) => {
 export function startTelegramBot() {
   if (config.telegram.token) {
     console.log('🤖 Starting Telegram bot with token:', config.telegram.token.substring(0, 10) + '...');
-
+    
     bot.launch()
       .then(() => {
-        console.log('✅ Telegram bot started successfully');
-        console.log('📱 Bot is ready to receive messages!');
+      console.log('✅ Telegram bot started successfully');
+      console.log('📱 Bot is ready to receive messages!');
       })
       .catch((error) => {
-        console.error('❌ Failed to start Telegram bot:', error);
-      });
-
+      console.error('❌ Failed to start Telegram bot:', error);
+    });
+    
     // Graceful stop
     process.once('SIGINT', () => bot.stop('SIGINT'));
     process.once('SIGTERM', () => bot.stop('SIGTERM'));
