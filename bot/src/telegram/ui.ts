@@ -10,6 +10,15 @@ export const ACTIONS = {
   VIEW_ACTIVITY: 'MENU_VIEW_ACTIVITY',
   MANAGE_ALERTS: 'MENU_MANAGE_ALERTS',
   GET_SUPPORT: 'MENU_GET_SUPPORT',
+  EXPLORE_MENU: 'MENU_EXPLORE',
+  EXPLORE_PROPERTIES: 'MENU_EXPLORE_PROPERTIES',
+  EXPLORE_AGRICULTURE: 'MENU_EXPLORE_AGRICULTURE',
+  EXPLORE_COMMUNITY: 'MENU_EXPLORE_COMMUNITY',
+  MARKETPLACE: 'MENU_MARKETPLACE',
+  TOKEN_DESK: 'MENU_TOKEN_DESK',
+  MY_INVESTMENTS: 'MENU_MY_INVESTMENTS',
+  CREATE_LISTING: 'MENU_CREATE_LISTING',
+  DEVELOPERS: 'MENU_DEVELOPERS',
   SHOW_MENU: 'MENU_SHOW_HOME',
   FLOW_TRANSFER_CONFIRM: 'FLOW_TRANSFER_CONFIRM',
   FLOW_TRANSFER_CANCEL: 'FLOW_TRANSFER_CANCEL',
@@ -20,6 +29,11 @@ export const ACTIONS = {
   ALERT_TOGGLE_PREFIX: 'ALERT_TOGGLE_',
   ONBOARD_EXISTING: 'ONBOARD_EXISTING',
   ONBOARD_NEW: 'ONBOARD_NEW',
+  CREATE_LISTING_CATEGORY_PREFIX: 'CREATE_LISTING_CATEGORY_',
+  CREATE_LISTING_CONFIRM: 'CREATE_LISTING_CONFIRM',
+  CREATE_LISTING_CANCEL: 'CREATE_LISTING_CANCEL',
+  FOLLOW_DEV_PREFIX: 'FOLLOW_DEV_',
+  UNFOLLOW_DEV_PREFIX: 'UNFOLLOW_DEV_',
 } as const;
 
 export type ActionKey = typeof ACTIONS[keyof typeof ACTIONS];
@@ -40,12 +54,16 @@ function chunkArray<T>(buttons: T[], size: number): T[][] {
 
 export function buildMainMenuKeyboard(): InlineKeyboardMarkup {
   const buttons: InlineKeyboardButton.CallbackButton[] = [
-    { text: '🏠 View Properties', callback_data: ACTIONS.VIEW_PROPERTIES },
+    { text: '🧭 Explore', callback_data: ACTIONS.EXPLORE_MENU },
+    { text: '🆕 Create Listing', callback_data: ACTIONS.CREATE_LISTING },
     { text: '💰 Check Balance', callback_data: ACTIONS.CHECK_BALANCE },
     { text: '🔁 Transfer Funds', callback_data: ACTIONS.TRANSFER_FUNDS },
     { text: '🎟️ View Tokens', callback_data: ACTIONS.VIEW_TOKENS },
-    { text: '🪪 Account Details', callback_data: ACTIONS.VIEW_ACCOUNT },
+    { text: '📊 My Investments', callback_data: ACTIONS.MY_INVESTMENTS },
+    { text: '🛍️ Marketplace', callback_data: ACTIONS.MARKETPLACE },
+    { text: '📈 Token Desk', callback_data: ACTIONS.TOKEN_DESK },
     { text: '📰 Recent Activity', callback_data: ACTIONS.VIEW_ACTIVITY },
+    { text: '👷 Developers', callback_data: ACTIONS.DEVELOPERS },
     { text: '🔔 Notification Settings', callback_data: ACTIONS.MANAGE_ALERTS },
     { text: '🆘 Get Support', callback_data: ACTIONS.GET_SUPPORT },
   ];
@@ -95,6 +113,35 @@ export function buildNotificationKeyboard(actions: NotificationAction[]): Inline
 
   return {
     inline_keyboard: chunkArray(buttons, 2),
+  };
+}
+
+export function buildExploreMenuKeyboard(): InlineKeyboardMarkup {
+  return {
+    inline_keyboard: chunkArray(
+      [
+        { text: '🏢 Properties', callback_data: ACTIONS.EXPLORE_PROPERTIES },
+        { text: '🌾 Agriculture', callback_data: ACTIONS.EXPLORE_AGRICULTURE },
+        { text: '🤝 Community', callback_data: ACTIONS.EXPLORE_COMMUNITY },
+        { text: '⬅️ Back to Menu', callback_data: ACTIONS.SHOW_MENU },
+      ],
+      2
+    ),
+  };
+}
+
+export function buildCreateListingCategoryKeyboard(): InlineKeyboardMarkup {
+  return {
+    inline_keyboard: [
+      [
+        { text: '🏢 Property', callback_data: `${ACTIONS.CREATE_LISTING_CATEGORY_PREFIX}property` },
+        { text: '🌾 Agriculture', callback_data: `${ACTIONS.CREATE_LISTING_CATEGORY_PREFIX}agriculture` },
+      ],
+      [
+        { text: '🤝 Community', callback_data: `${ACTIONS.CREATE_LISTING_CATEGORY_PREFIX}community` },
+      ],
+      [{ text: '⬅️ Cancel', callback_data: ACTIONS.CREATE_LISTING_CANCEL }],
+    ],
   };
 }
 

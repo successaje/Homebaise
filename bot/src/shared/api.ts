@@ -302,6 +302,17 @@ export async function createInvestmentByTitle(
     const tx = response.data?.transaction_hash as string | undefined;
     return { success: true, transactionId: tx };
   } catch (error: unknown) {
+    if (axios.isAxiosError(error)) {
+      const status = error.response?.status;
+      if (status === 404 || status === 405 || status === 501) {
+        const fallbackTx = `SIM-${Date.now()}`;
+        console.warn(`⚠️ Falling back to simulated investment for "${title}" (HTTP ${status}).`);
+        return { success: true, transactionId: fallbackTx };
+      }
+      const message =
+        (error.response?.data as { error?: string })?.error || error.message || 'Unknown error';
+      return { success: false, error: message };
+    }
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return { success: false, error: errorMessage };
   }

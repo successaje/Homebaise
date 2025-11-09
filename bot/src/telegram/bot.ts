@@ -40,8 +40,19 @@ import {
   buildAlertPreferencesKeyboard,
   buildOnboardingChoiceKeyboard,
   buildInvestAmountKeyboard,
+  buildExploreMenuKeyboard,
+  buildCreateListingCategoryKeyboard,
 } from './ui';
 import { registerNotificationBridge } from './notifications';
+import {
+  Listing,
+  propertyListings,
+  agricultureListings,
+  communityListings,
+  marketplaceListings,
+  developerProfiles,
+  tokenPairs,
+} from '../data/listings';
 
 interface TransferFlowData {
   amount?: number;
@@ -50,6 +61,8 @@ interface TransferFlowData {
   recipientLabel?: string;
   memo?: string;
 }
+
+type ListingCategory = 'property' | 'agriculture' | 'community';
 
 type FlowState =
   | {
@@ -70,6 +83,25 @@ type FlowState =
       data: {
         propertyId: string;
         propertyName: string;
+      };
+    }
+  | {
+      type: 'CREATE_LISTING';
+      step:
+        | 'CATEGORY'
+        | 'NAME'
+        | 'LOCATION'
+        | 'SUMMARY'
+        | 'TARGET'
+        | 'YIELD'
+        | 'CONFIRM';
+      data: {
+        category?: ListingCategory;
+        name?: string;
+        location?: string;
+        summary?: string;
+        targetAmount?: number;
+        yieldRate?: number;
       };
     };
 
@@ -92,9 +124,32 @@ const sessionStore = new Map<string, SessionState>();
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const propertyCache = new Map<
   string,
-  { id: string; name: string; location: string; yieldRate: number; fundedPercent: number; totalValue: number; url?: string }
+  {
+    id: string;
+    name: string;
+    location: string;
+    yieldRate: number;
+    fundedPercent: number;
+    totalValue: number;
+    url?: string;
+  }
 >();
 const ACCOUNT_ID_REGEX = /^\d+\.\d+\.\d+$/;
+
+const baseListings: Record<ListingCategory, Listing[]> = {
+  property: propertyListings,
+  agriculture: agricultureListings,
+  community: communityListings,
+};
+
+const customListings: Record<ListingCategory, Listing[]> = {
+  property: [],
+  agriculture: [],
+  community: [],
+};
+
+const userInvestments = new Map<string, Array<{ listingId: string; name: string; amount: number; timestamp: number }>>();
+const userFollows = new Map<string, Set<string>>();
 
 function getSessionState(chatId: string): SessionState {
   return sessionStore.get(chatId) ?? {};
@@ -106,6 +161,49 @@ function persistSessionState(chatId: string, state: SessionState) {
 
 function isValidEmail(value: string): boolean {
   return emailRegex.test(value.trim().toLowerCase());
+}
+
+function getListingsForCategory(category: ListingCategory): Listing[] {
+  return [...baseListings[category], ...customListings[category]];
+}
+
+function recordInvestment(userId: string, listingId: string, name: string, amount: number) {
+  const entries = userInvestments.get(userId) ?? [];
+  entries.push({ listingId, name, amount, timestamp: Date.now() });
+  userInvestments.set(userId, entries);
+}
+
+function getFollowSet(userId: string): Set<string> {
+  let set = userFollows.get(userId);
+  if (!set) {
+    set = new Set<string>();
+    userFollows.set(userId, set);
+  }
+  return set;
+}
+
+function formatUsd(amount: number): string {
+  if (!Number.isFinite(amount) || amount <= 0) return 'N/A';
+  return `$${amount.toLocaleString()}`;
+}
+
+function formatPercent(value: number): string {
+  if (!Number.isFinite(value)) return 'N/A';
+  return `${value}%`;
+}
+
+function cacheListingForInvest(listing: Listing) {
+  propertyCache.set(listing.id, {
+    id: listing.id,
+    name: listing.name,
+    location: `${listing.location}, ${listing.country}`,
+    yieldRate: listing.yieldRate,
+    fundedPercent: listing.fundedPercent,
+    totalValue: listing.targetAmount,
+    url: listing.slug
+      ? `https://homebaise.vercel.app/properties/${listing.slug}`
+      : undefined,
+  });
 }
 
 function resetFlow(ctx: BotContext) {
@@ -691,6 +789,194 @@ async function sendSupportOptions(ctx: BotContext) {
   );
 }
 
+async function sendListingsForCategory(ctx: BotContext, category: ListingCategory) {
+  const listings = getListingsForCategory(category);
+  const headingMap = {
+    property: '🏢 Property Opportunities',
+    agriculture: '🌾 Agricultural Projects',
+    community: '🤝 Community Investments',
+  } as const;
+
+  if (!listings.length) {
+    await ctx.reply('No listings available yet. You can be the first to create one!', {
+      reply_markup: buildBackToMenuKeyboard(),
+    });
+    return;
+  }
+
+  for (const listing of listings.slice(0, 5)) {
+    cacheListingForInvest(listing);
+
+    const message =
+      `${headingMap[category]}\n\n` +
+      `*${listing.name}*\n` +
+      `${listing.location}, ${listing.country}\n\n` +
+      `${listing.summary}\n\n` +
+      `🎯 Target: ${formatUsd(listing.targetAmount)}\n` +
+      `📊 Funded: ${formatPercent(listing.fundedPercent)}\n` +
+      `💵 Yield: ${formatPercent(listing.yieldRate)}\n` +
+      `👷 Developer: ${listing.developer}`;
+
+    const inline_keyboard: InlineKeyboardButton[][] = [
+      [
+        { text: '💸 Invest', callback_data: `${ACTIONS.INVEST_PROPERTY_PREFIX}${listing.id}` },
+        { text: 'ℹ️ View Details', callback_data: `${ACTIONS.VIEW_PROPERTY_PREFIX}${listing.id}` },
+      ],
+    ];
+
+    await ctx.reply(message, {
+      parse_mode: 'Markdown',
+      reply_markup: { inline_keyboard },
+    });
+  }
+}
+
+async function sendMarketplaceOverview(ctx: BotContext) {
+  const items = marketplaceListings.slice(0, 5);
+  if (!items.length) {
+    await ctx.reply('🛍️ No marketplace listings available right now.', {
+      reply_markup: buildBackToMenuKeyboard(),
+    });
+    return;
+  }
+
+  let message = '🛍️ *Marketplace Spotlight*\n\n';
+  items.forEach((item) => {
+    message += `• *${item.title}* (${item.category === 'primary' ? 'Primary' : 'Secondary'})\n`;
+    message += `  ${item.description}\n`;
+    message += `  Seller: ${item.seller}\n`;
+    message += `  Price: ${item.price} ${item.currency}\n\n`;
+  });
+
+  await ctx.reply(message, {
+    parse_mode: 'Markdown',
+    reply_markup: buildBackToMenuKeyboard(),
+  });
+}
+
+async function sendTokenTradingDesk(ctx: BotContext) {
+  if (!tokenPairs.length) {
+    await ctx.reply('📈 No token pairs to display yet.', {
+      reply_markup: buildBackToMenuKeyboard(),
+    });
+    return;
+  }
+
+  let message = '📈 *Token Trading Desk*\n\n';
+  tokenPairs.forEach((pair) => {
+    const emoji = pair.status === 'bullish' ? '🟢' : pair.status === 'bearish' ? '🔻' : '⚖️';
+    message += `${emoji} *${pair.pair}*\n`;
+    message += `  Price: $${pair.lastPrice.toFixed(2)}\n`;
+    message += `  24h Change: ${pair.change24h >= 0 ? '+' : ''}${pair.change24h.toFixed(2)}%\n`;
+    message += `  Volume: $${pair.volume24h.toLocaleString()}\n\n`;
+  });
+
+  await ctx.reply(message, {
+    parse_mode: 'Markdown',
+    reply_markup: buildBackToMenuKeyboard(),
+  });
+}
+
+async function sendDeveloperDirectory(ctx: BotContext) {
+  if (!ctx.session?.userId) {
+    await ctx.reply('❌ Please authenticate first using /start.');
+    return;
+  }
+
+  const followSet = getFollowSet(ctx.session.userId);
+
+  for (const profile of developerProfiles) {
+    const isFollowing = followSet.has(profile.id);
+    const message =
+      `👷 *${profile.name}*\n` +
+      `${profile.headline}\n\n` +
+      `Focus: ${profile.focus}\n` +
+      `Followers: ${profile.followers.toLocaleString()}\n` +
+      `Active Projects: ${profile.activeProjects}`;
+
+    const inline_keyboard: InlineKeyboardButton[][] = [
+      [
+        isFollowing
+          ? { text: '✅ Following', callback_data: `${ACTIONS.UNFOLLOW_DEV_PREFIX}${profile.id}` }
+          : { text: '➕ Follow', callback_data: `${ACTIONS.FOLLOW_DEV_PREFIX}${profile.id}` },
+      ],
+    ];
+
+    await ctx.reply(message, {
+      parse_mode: 'Markdown',
+      reply_markup: { inline_keyboard },
+    });
+  }
+}
+
+async function sendInvestmentTracker(ctx: BotContext) {
+  if (!ctx.session?.userId) {
+    await ctx.reply('❌ Please authenticate first using /start.');
+    return;
+  }
+
+  const entries = userInvestments.get(ctx.session.userId) ?? [];
+  if (!entries.length) {
+    await ctx.reply('📊 No investments recorded yet. Explore listings to make your first investment!', {
+      reply_markup: buildBackToMenuKeyboard(),
+    });
+    return;
+  }
+
+  let total = 0;
+  const lines = entries.slice(-10).reverse().map((entry) => {
+    total += entry.amount;
+    const date = new Date(entry.timestamp).toLocaleString();
+    return `• *${entry.name}*\n  Amount: $${entry.amount.toFixed(2)}\n  Date: ${date}`;
+  });
+
+  const message = `📊 *Your Recent Investments*\n\n${lines.join('\n\n')}\n\n💵 *Total Recorded*: $${total.toFixed(2)}`;
+
+  await ctx.reply(message, {
+    parse_mode: 'Markdown',
+    reply_markup: buildBackToMenuKeyboard(),
+  });
+}
+
+async function startCreateListingFlow(ctx: BotContext) {
+  requireSession(ctx);
+  ctx.session.flow = {
+    type: 'CREATE_LISTING',
+    step: 'CATEGORY',
+    data: {},
+  };
+  if (ctx.session.chatId) persistSessionState(ctx.session.chatId, ctx.session);
+  await ctx.reply('Let’s create a new listing! What kind of opportunity is this?', {
+    reply_markup: buildCreateListingCategoryKeyboard(),
+  });
+}
+
+function resetCreateListingFlow(ctx: BotContext, message?: string) {
+  if (message) {
+    ctx.reply(message, { reply_markup: buildBackToMenuKeyboard() }).catch(() => undefined);
+  }
+  if (ctx.session) {
+    ctx.session.flow = undefined;
+    if (ctx.session.chatId) persistSessionState(ctx.session.chatId, ctx.session);
+  }
+}
+
+function finishCreateListing(ctx: BotContext, listing: Listing) {
+  customListings[listing.category].push(listing);
+  cacheListingForInvest(listing);
+  ctx.reply(
+    `✅ *Listing published!*\n\n${listing.name}\n${listing.location}, ${listing.country}\nTarget: ${formatUsd(listing.targetAmount)}\nYield: ${formatPercent(listing.yieldRate)}\n\nInvestors can now discover this opportunity from the Explore menu.`,
+    {
+      parse_mode: 'Markdown',
+      reply_markup: buildBackToMenuKeyboard(),
+    }
+  ).catch(() => undefined);
+  if (ctx.session) {
+    ctx.session.flow = undefined;
+    if (ctx.session.chatId) persistSessionState(ctx.session.chatId, ctx.session);
+  }
+}
+
 async function startInvestFlowForProperty(ctx: BotContext, propertyId: string) {
   if (!ctx.session?.userId) {
     await ctx.reply('❌ Please authenticate first using /start.');
@@ -759,6 +1045,8 @@ async function completeInvestment(ctx: BotContext, propertyId: string, amountUsd
     parse_mode: 'Markdown',
     reply_markup: buildBackToMenuKeyboard(),
   });
+
+  recordInvestment(ctx.session.userId, propertyId, cached.name, amountUsd);
 
   ctx.session.flow = undefined;
   if (ctx.session.chatId) persistSessionState(ctx.session.chatId, ctx.session);
@@ -853,6 +1141,166 @@ bot.command('help', async (ctx) => {
 bot.action(ACTIONS.SHOW_MENU, async (ctx) => {
   await ctx.answerCbQuery().catch(() => undefined);
   await sendMainMenu(ctx, '👇 Choose what to do next:');
+});
+
+bot.action(ACTIONS.EXPLORE_MENU, async (ctx) => {
+  await ctx.answerCbQuery().catch(() => undefined);
+  await ctx.reply('What type of opportunity would you like to explore?', {
+    reply_markup: buildExploreMenuKeyboard(),
+  });
+});
+
+bot.action(ACTIONS.EXPLORE_PROPERTIES, async (ctx) => {
+  if (!(await ensureAuthenticatedForAction(ctx))) return;
+  await ctx.answerCbQuery().catch(() => undefined);
+  await sendListingsForCategory(ctx, 'property');
+});
+
+bot.action(ACTIONS.EXPLORE_AGRICULTURE, async (ctx) => {
+  if (!(await ensureAuthenticatedForAction(ctx))) return;
+  await ctx.answerCbQuery().catch(() => undefined);
+  await sendListingsForCategory(ctx, 'agriculture');
+});
+
+bot.action(ACTIONS.EXPLORE_COMMUNITY, async (ctx) => {
+  if (!(await ensureAuthenticatedForAction(ctx))) return;
+  await ctx.answerCbQuery().catch(() => undefined);
+  await sendListingsForCategory(ctx, 'community');
+});
+
+bot.action(ACTIONS.MARKETPLACE, async (ctx) => {
+  if (!(await ensureAuthenticatedForAction(ctx))) return;
+  await ctx.answerCbQuery().catch(() => undefined);
+  await sendMarketplaceOverview(ctx);
+});
+
+bot.action(ACTIONS.TOKEN_DESK, async (ctx) => {
+  if (!(await ensureAuthenticatedForAction(ctx))) return;
+  await ctx.answerCbQuery().catch(() => undefined);
+  await sendTokenTradingDesk(ctx);
+});
+
+bot.action(ACTIONS.DEVELOPERS, async (ctx) => {
+  if (!(await ensureAuthenticatedForAction(ctx))) return;
+  await ctx.answerCbQuery().catch(() => undefined);
+  await sendDeveloperDirectory(ctx);
+});
+
+bot.action(ACTIONS.MY_INVESTMENTS, async (ctx) => {
+  if (!(await ensureAuthenticatedForAction(ctx))) return;
+  await ctx.answerCbQuery().catch(() => undefined);
+  await sendInvestmentTracker(ctx);
+});
+
+bot.action(ACTIONS.CREATE_LISTING, async (ctx) => {
+  if (!(await ensureAuthenticatedForAction(ctx))) return;
+  await ctx.answerCbQuery().catch(() => undefined);
+  await startCreateListingFlow(ctx);
+});
+
+bot.action(new RegExp(`^${ACTIONS.CREATE_LISTING_CATEGORY_PREFIX}`), async (ctx) => {
+  if (!(await ensureAuthenticatedForAction(ctx))) return;
+  await ctx.answerCbQuery().catch(() => undefined);
+  const callbackData =
+    ctx.callbackQuery && 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : undefined;
+  const category = callbackData?.replace(ACTIONS.CREATE_LISTING_CATEGORY_PREFIX, '') as ListingCategory | undefined;
+
+  if (!category || !['property', 'agriculture', 'community'].includes(category)) {
+    await ctx.reply('⚠️ Unknown listing category.');
+    return;
+  }
+
+  if (!ctx.session) ctx.session = {} as SessionState;
+  ctx.session.flow = {
+    type: 'CREATE_LISTING',
+    step: 'NAME',
+    data: { category },
+  };
+  if (ctx.session.chatId) persistSessionState(ctx.session.chatId, ctx.session);
+
+  await ctx.reply('Great! What is the project name?');
+});
+
+bot.action(ACTIONS.CREATE_LISTING_CANCEL, async (ctx) => {
+  await ctx.answerCbQuery().catch(() => undefined);
+  resetCreateListingFlow(ctx, '🚫 Listing creation cancelled.');
+});
+
+bot.action(ACTIONS.CREATE_LISTING_CONFIRM, async (ctx) => {
+  if (!(await ensureAuthenticatedForAction(ctx))) return;
+  await ctx.answerCbQuery().catch(() => undefined);
+
+  const flow = ctx.session?.flow;
+  if (!flow || flow.type !== 'CREATE_LISTING' || flow.step !== 'CONFIRM' || !flow.data.category) {
+    await ctx.answerCbQuery('Unable to confirm listing right now.', { show_alert: true }).catch(() => undefined);
+    return;
+  }
+
+  const [city = '', country = ''] = (flow.data.location || '').split(',').map((part) => part.trim());
+  const listing: Listing = {
+    id: `user-${Date.now()}`,
+    name: flow.data.name || 'Community Listing',
+    category: flow.data.category,
+    type:
+      flow.data.category === 'property'
+        ? 'User Property'
+        : flow.data.category === 'agriculture'
+        ? 'User Agriculture'
+        : 'Community Project',
+    location: city || flow.data.location || 'Unknown Location',
+    country: country || 'N/A',
+    summary: flow.data.summary || 'Community submitted opportunity.',
+    targetAmount: flow.data.targetAmount ?? 0,
+    fundedPercent: 0,
+    yieldRate: flow.data.yieldRate ?? 0,
+    developer: ctx.from?.first_name ? `${ctx.from.first_name} (Community)` : 'Community Member',
+  };
+
+  finishCreateListing(ctx, listing);
+});
+
+bot.action(new RegExp(`^${ACTIONS.FOLLOW_DEV_PREFIX}`), async (ctx) => {
+  if (!(await ensureAuthenticatedForAction(ctx))) return;
+  await ctx.answerCbQuery().catch(() => undefined);
+
+  const callbackData =
+    ctx.callbackQuery && 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : undefined;
+  const developerId = callbackData?.replace(ACTIONS.FOLLOW_DEV_PREFIX, '');
+  const profile = developerProfiles.find((dev) => dev.id === developerId);
+
+  if (!developerId || !profile || !ctx.session?.userId) {
+    await ctx.answerCbQuery('Unable to follow developer right now.', { show_alert: true }).catch(() => undefined);
+    return;
+  }
+
+  const followSet = getFollowSet(ctx.session.userId);
+  followSet.add(developerId);
+  await ctx.editMessageReplyMarkup({
+    inline_keyboard: [[{ text: '✅ Following', callback_data: `${ACTIONS.UNFOLLOW_DEV_PREFIX}${developerId}` }]],
+  }).catch(() => undefined);
+  await ctx.answerCbQuery(`Following ${profile.name}`, { show_alert: false }).catch(() => undefined);
+});
+
+bot.action(new RegExp(`^${ACTIONS.UNFOLLOW_DEV_PREFIX}`), async (ctx) => {
+  if (!(await ensureAuthenticatedForAction(ctx))) return;
+  await ctx.answerCbQuery().catch(() => undefined);
+
+  const callbackData =
+    ctx.callbackQuery && 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : undefined;
+  const developerId = callbackData?.replace(ACTIONS.UNFOLLOW_DEV_PREFIX, '');
+  const profile = developerProfiles.find((dev) => dev.id === developerId);
+
+  if (!developerId || !profile || !ctx.session?.userId) {
+    await ctx.answerCbQuery('Unable to update follow status right now.', { show_alert: true }).catch(() => undefined);
+    return;
+  }
+
+  const followSet = getFollowSet(ctx.session.userId);
+  followSet.delete(developerId);
+  await ctx.editMessageReplyMarkup({
+    inline_keyboard: [[{ text: '➕ Follow', callback_data: `${ACTIONS.FOLLOW_DEV_PREFIX}${developerId}` }]],
+  }).catch(() => undefined);
+  await ctx.answerCbQuery(`Unfollowed ${profile.name}`, { show_alert: false }).catch(() => undefined);
 });
 
 bot.action(ACTIONS.CHECK_BALANCE, async (ctx) => {
@@ -1171,6 +1619,89 @@ bot.on('text', async (ctx: BotContext) => {
 
   const activeFlow = ctx.session.flow;
 
+  if (activeFlow?.type === 'CREATE_LISTING') {
+    const chatIdForFlow = ctx.session.chatId;
+    const flowData = activeFlow.data;
+
+    switch (activeFlow.step) {
+      case 'CATEGORY':
+        await ctx.reply('Please choose a listing type using the buttons above.');
+        return;
+      case 'NAME':
+        flowData.name = text;
+        activeFlow.step = 'LOCATION';
+        ctx.session.flow = activeFlow;
+        if (chatIdForFlow) persistSessionState(chatIdForFlow, ctx.session);
+        await ctx.reply('🌍 Where is this project located? (e.g. Lagos, Nigeria)');
+        return;
+      case 'LOCATION':
+        flowData.location = text;
+        activeFlow.step = 'SUMMARY';
+        ctx.session.flow = activeFlow;
+        if (chatIdForFlow) persistSessionState(chatIdForFlow, ctx.session);
+        await ctx.reply('📝 Give a short headline describing the opportunity.');
+        return;
+      case 'SUMMARY':
+        flowData.summary = text;
+        activeFlow.step = 'TARGET';
+        ctx.session.flow = activeFlow;
+        if (chatIdForFlow) persistSessionState(chatIdForFlow, ctx.session);
+        await ctx.reply('🎯 What is the target raise amount in USD?');
+        return;
+      case 'TARGET': {
+        const numeric = Number(text.replace(/[^\d.]/g, ''));
+        if (!Number.isFinite(numeric) || numeric <= 0) {
+          await ctx.reply('❌ Please provide a valid USD amount (numbers only).');
+          return;
+        }
+        flowData.targetAmount = numeric;
+        activeFlow.step = 'YIELD';
+        ctx.session.flow = activeFlow;
+        if (chatIdForFlow) persistSessionState(chatIdForFlow, ctx.session);
+        await ctx.reply('📈 What is the expected annual yield percentage?');
+        return;
+      }
+      case 'YIELD': {
+        const numeric = Number(text.replace(/[^\d.]/g, ''));
+        if (!Number.isFinite(numeric) || numeric < 0) {
+          await ctx.reply('❌ Please provide a valid percentage (numbers only).');
+          return;
+        }
+        flowData.yieldRate = numeric;
+        activeFlow.step = 'CONFIRM';
+        ctx.session.flow = activeFlow;
+        if (chatIdForFlow) persistSessionState(chatIdForFlow, ctx.session);
+
+        const summary =
+          `Please review your listing:\n\n` +
+          `• *Name*: ${flowData.name}\n` +
+          `• *Location*: ${flowData.location}\n` +
+          `• *Summary*: ${flowData.summary}\n` +
+          `• *Target*: ${formatUsd(flowData.targetAmount ?? 0)}\n` +
+          `• *Yield*: ${formatPercent(flowData.yieldRate ?? 0)}\n` +
+          `• *Category*: ${flowData.category}`;
+
+        await ctx.reply(summary, {
+          parse_mode: 'Markdown',
+          reply_markup: {
+            inline_keyboard: [
+              [
+                { text: '✅ Publish Listing', callback_data: ACTIONS.CREATE_LISTING_CONFIRM },
+                { text: '❌ Cancel', callback_data: ACTIONS.CREATE_LISTING_CANCEL },
+              ],
+            ],
+          },
+        });
+        return;
+      }
+      case 'CONFIRM':
+        await ctx.reply('Please use the buttons above to confirm or cancel the listing.');
+        return;
+      default:
+        break;
+    }
+  }
+
   if (activeFlow?.type === 'ONBOARDING') {
     if (activeFlow.step === 'EMAIL_EXISTING') {
       if (!isValidEmail(text)) {
@@ -1268,36 +1799,6 @@ Your OTP is: *${otp}*
     return;
   }
 
-  if (ctx.session.awaitingOTP) {
-    console.log(`🔐 OTP verification attempt: "${text}" for chat ${chatId}`);
-
-    const result = await verifyOTP('telegram', chatId, text);
-    console.log(`🔐 OTP verification result:`, result);
-
-    if (result.success && result.userId) {
-      await finalizeAuthentication(
-        ctx,
-        result.userId,
-        result.phoneNumber,
-        `✅ *Authentication successful!*\n\nWelcome to Homebaise 🎉\nChoose what you'd like to do next.`
-      );
-
-      await logNotification(
-        result.userId,
-        'telegram',
-        chatId,
-        'auth',
-        'Welcome to Homebaise',
-        'User successfully authenticated'
-      );
-
-      return;
-    } else {
-      await ctx.reply(`❌ Invalid or expired OTP. Please try again with /start`);
-    }
-    return;
-  }
-
   if (isAuthed) {
     const investMatch = text.match(/invest\s+\$?([\d_,\.]+)\s*(?:usd|dollars)?\s*(?:in|into|on)\s+(.+)/i);
     if (investMatch) {
@@ -1321,13 +1822,12 @@ Your OTP is: *${otp}*
       const txId = result.transactionId || '';
       const hashscanUrl = txId ? `https://hashscan.io/testnet/transaction/${txId}` : '';
 
-      let confirmation = `✅ Investment submitted!
+      if (ctx.session?.userId) {
+        recordInvestment(ctx.session.userId, txId || `manual-${Date.now()}`, titleQuery, amount);
+      }
 
-` + `Title: ${titleQuery}
-` + `Amount: $${amount.toFixed(2)}`;
-      if (hashscanUrl) confirmation += `
-
-🔗 Hashscan: ${hashscanUrl}`;
+      let confirmation = `✅ Investment submitted!\n\n` + `Title: ${titleQuery}\n` + `Amount: $${amount.toFixed(2)}`;
+      if (hashscanUrl) confirmation += `\n\n🔗 Hashscan: ${hashscanUrl}`;
       await ctx.reply(confirmation, { parse_mode: 'Markdown' });
       return;
     }
