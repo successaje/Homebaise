@@ -432,9 +432,11 @@ export async function getRecentBotNotifications(userId: string, limit = 5): Prom
 }>> {
   const { data, error } = await supabase
     .from('bot_notifications')
-    .select('title, message, message_type, created_at')
+    .select('title, message, message_type, created_at, inserted_at, createdAt')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
+    .order('inserted_at', { ascending: false })
+    .order('createdAt', { ascending: false })
     .limit(limit);
 
   if (error) {
@@ -442,7 +444,12 @@ export async function getRecentBotNotifications(userId: string, limit = 5): Prom
     return [];
   }
 
-  return data ?? [];
+  return (data ?? []).map((item) => ({
+    title: item.title,
+    message: item.message,
+    message_type: item.message_type,
+    created_at: item.created_at || item.inserted_at || item.createdAt || null,
+  }));
 }
 
 export async function logNotification(

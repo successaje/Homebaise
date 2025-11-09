@@ -211,25 +211,51 @@ ${lines.join('\n\n')}`;
 async function sendPropertiesOverview(ctx: BotContext) {
   const properties = await getProperties(config.bot.serverToken || '');
 
-  if (!properties || !properties.length) {
+  const formatProperty = (property: any) => {
+    const name = property.name || property.title || 'Unknown Property';
+    const location = property.location || property.city || property.country || 'Unknown Location';
+    const yieldRate = Number(property.yieldRate ?? property.expectedYield ?? property.apy ?? 0);
+    const funded = Number(property.fundedPercent ?? property.funded_percent ?? property.fundingProgress ?? 0);
+    const totalValue = Number(property.totalValue ?? property.targetAmount ?? property.price ?? 0);
+
+    return {
+      id: property.id || property.property_id || property.slug || name.replace(/\s+/g, '-').toLowerCase(),
+      name,
+      location,
+      yieldRate: Number.isFinite(yieldRate) ? Number(yieldRate.toFixed(2)) : 0,
+      fundedPercent: Number.isFinite(funded) ? Number(funded.toFixed(2)) : 0,
+      totalValue: Number.isFinite(totalValue) ? totalValue : 0,
+      url:
+        property.slug
+          ? `https://homebaise.vercel.app/properties/${property.slug}`
+          : property.id
+          ? `https://homebaise.vercel.app/properties/${property.id}`
+          : undefined,
+    };
+  };
+
+  const normalized = (properties || []).map(formatProperty).slice(0, 3);
+
+  if (!normalized.length) {
     await ctx.reply('🏡 No properties are available at the moment. Please check back soon!', {
       reply_markup: buildBackToMenuKeyboard(),
     });
     return;
   }
 
-  const topProperties = properties.slice(0, 3);
-  const lines = topProperties.map(
+  const lines = normalized.map(
     (property) =>
       `• *${property.name}*\n  ${property.location}\n  Yield: ${property.yieldRate}% · Funded: ${property.fundedPercent}%`
   );
 
   const inlineKeyboard = [
-    ...topProperties.map((property) => [
-      {
-        text: `🔍 View ${property.name}`,
-        callback_data: `${ACTIONS.VIEW_PROPERTY_PREFIX}${property.id}`,
-      },
+    ...normalized.map((property) => [
+      property.url
+        ? { text: `🔍 View ${property.name}`, url: property.url }
+        : {
+            text: `🔍 View ${property.name}`,
+            callback_data: `${ACTIONS.VIEW_PROPERTY_PREFIX}${property.id}`,
+          },
     ]),
     [{ text: '⬅️ Back to Menu', callback_data: ACTIONS.SHOW_MENU }],
   ];
